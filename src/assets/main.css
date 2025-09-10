@@ -1,11 +1,37 @@
-/* color palette from <https://github.com/vuejs/theme> */
 :root {
   --white: #ffffff;
   --black: #000000;
+
+  --text-primary: var(--white);
+  --text-secondary: #5c6975;
 }
 
 body {
   min-height: 100vh;
   color: var(--white);
   background: var(--black);
+  font-family: "Public Sans", sans-serif;
+  margin: 0;
+}
+
+/* Text Button Element */
+.text-nav-button-group {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
+.text-nav-button {
+  color: var(--text-secondary);
+  font-weight: bold;
+  font-size: x-large;
+}
+
+.text-nav-button:hover {
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.text-nav-button.active {
+ color: var(--text-primary);
 }

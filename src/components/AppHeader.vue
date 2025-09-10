@@ -1,9 +1,7 @@
 <template>
   <header class="app-header">
-    <nav>
-      <RouterLink to="/" class="link" exact-active-class="active">Home</RouterLink>
-      <RouterLink to="/about" class="link" exact-active-class="active">About</RouterLink>
-    </nav>
+    <img class="logo" src="../assets/AlgoTradeLogo.png" alt="AlgoTrade Logo" />
+    <h1>Algo Trade</h1>
   </header>
 </template>
 
@@ -11,9 +9,19 @@
 
 <style scoped>
 .app-header {
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid var(--border);
   padding: .75rem 1rem;
 }
-.link { margin-right: 1rem; text-decoration: none; }
-.active { font-weight: 700; }
+
+.logo {
+  max-height: 4rem;
+  display: block;
+}
+
+h1 { 
+  margin: 0;
+  font-size: 1.5rem;
+}
 </style>

@@ -23,7 +23,10 @@ import { RouterView } from 'vue-router';
   flex-direction: column;
 }
 .app-main {
+  display: flex;
   flex: 1;
   padding: 1rem;
+  flex-direction: column;
+  align-items: center;
 }
 </style>

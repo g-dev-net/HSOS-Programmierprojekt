@@ -1,6 +1,6 @@
 <template>
   <footer class="app-footer">
-    © {{ new Date().getFullYear() }} • Your App
+    {{ new Date().getFullYear() }} • Programmierprojekt HS Osnabrück
   </footer>
 </template>
 
