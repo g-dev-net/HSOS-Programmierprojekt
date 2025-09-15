@@ -1,5 +1,50 @@
 <script setup lang="ts">
 import { type Ref, ref } from 'vue';
+import { Line} from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js'
+
+ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale)
+
+const chartData = {
+  labels: [0, 1, 2, 3, 4, 5],
+  datasets: [
+    {
+      label: 'Investment',
+      data: [0, 1, 1, -1, 1, 1],
+      borderColor: 'white',
+      backgroundColor: 'transparent',
+      tension: 0,
+    }
+  ]
+}
+
+const chartOptions = {
+  responsive: true,
+  scales: {
+    y: {
+      ticks: {
+        color: 'white'
+      }
+    },
+    x: {
+      ticks: {
+        color: 'white'
+      }
+    }
+  },
+  legend: {
+    display: false
+  }
+}
 
 const algorithms = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
@@ -56,8 +101,7 @@ const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
           </div>
         </div>
         <div class="diagramm">
-          
-
+          <Line :data="chartData" :options="chartOptions" />
         </div>
         <div class="table">
 
