@@ -1,50 +1,6 @@
 <script setup lang="ts">
+import MainChart from '@/components/MainChart.vue';
 import { type Ref, ref } from 'vue';
-import { Line} from 'vue-chartjs';
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  LineElement,
-  PointElement,
-  CategoryScale,
-  LinearScale
-} from 'chart.js'
-
-ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale)
-
-const chartData = {
-  labels: [0, 1, 2, 3, 4, 5],
-  datasets: [
-    {
-      label: 'Investment',
-      data: [0, 1, 1, -1, 1, 1],
-      borderColor: 'white',
-      backgroundColor: 'transparent',
-      tension: 0,
-    }
-  ]
-}
-
-const chartOptions = {
-  responsive: true,
-  scales: {
-    y: {
-      ticks: {
-        color: 'white'
-      }
-    },
-    x: {
-      ticks: {
-        color: 'white'
-      }
-    }
-  },
-  legend: {
-    display: false
-  }
-}
 
 const algorithms = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
@@ -52,6 +8,14 @@ const algorithms = [
 ];
 
 const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
+
+function onInvest() {
+  console.log('Invest clicked');
+}
+
+function onAddStock() {
+  console.log('Add stock clicked');
+}
 
 </script>
 
@@ -98,10 +62,13 @@ const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
             <div class="starting-capital">
               Restkapital: 10.000€
             </div>
+            <div class="starting-capital">
+              Investmens: 10
+            </div>
           </div>
         </div>
-        <div class="diagramm">
-          <Line :data="chartData" :options="chartOptions" />
+        <div class="diagramm" ref="diagrammRef">
+          <MainChart :data="[0, 200, 400, 300, 0. -200, -100, 100, 0]" />
         </div>
         <div class="table">
 
@@ -128,7 +95,7 @@ const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
                 <div>40€</div>
               </div>
             </div>
-            <button class="sidebar-portfolio-item-button">
+            <button class="sidebar-portfolio-item-button" @click="onInvest">
               Investieren
             </button>
           </div>
@@ -220,6 +187,15 @@ const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
   display: flex;
   flex-direction: column;
   align-items: end;
+}
+
+.diagramm {
+  width: 100%;
+  aspect-ratio: 2/1;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Sidebar */
