@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
 import { type Ref, ref } from 'vue';
+import stocks from '@/data/aktien.json';
+import { useBanditStore } from '@/stores/bandit';
+
+const banditStore = useBanditStore();
 
 const algorithms = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
@@ -56,14 +60,35 @@ function onAddStock() {
             </div>
           </div>
           <div class="capital-box">
-            <div class="starting-capital">
-              Startkapital: 10.000€
+            <div class="capital-box-row">
+              <div>
+                Startkapital:
+              </div>
+              <div>
+                10.000€
+              </div>
             </div>
-            <div class="starting-capital">
-              Restkapital: 10.000€
+            <div class="capital-box-row">
+              <div>
+                Restkapital:
+              </div>
+              <div>
+                10.000€
+              </div>
             </div>
-            <div class="starting-capital">
-              Investmens: 10
+            <div class="capital-box-row">
+              <div>Investments:</div>
+              <div class="capital-invest-counter">
+                <button class="capital-invest-counter-button">
+                  <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
+                </button>
+                <div>
+                  10
+                </div>
+                <button class="capital-invest-counter-button">
+                  <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -78,21 +103,18 @@ function onAddStock() {
       <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
           <h3>Aktien im Portfolio</h3>
-          <button>Neue Aktie hinzufügen</button>
-          <div class="sidebar-portfolio-item">
-            <!--<img src="../assets/AppleLogo.png" alt="Apple Logo" class="sidebar-portfolio-item-logo" />-->
-            <svg height="44" viewBox="0 0 14 44" fill="white" width="14" xmlns="http://www.w3.org/2000/svg"
-              class="sidebar-portfolio-item-logo">
-              <path
-                d="m13.0729 17.6825a3.61 3.61 0 0 0 -1.7248 3.0365 3.5132 3.5132 0 0 0 2.1379 3.2223 8.394 8.394 0 0 1 -1.0948 2.2618c-.6816.9812-1.3943 1.9623-2.4787 1.9623s-1.3633-.63-2.613-.63c-1.2187 0-1.6525.6507-2.644.6507s-1.6834-.9089-2.4787-2.0243a9.7842 9.7842 0 0 1 -1.6628-5.2776c0-3.0984 2.014-4.7405 3.9969-4.7405 1.0535 0 1.9314.6919 2.5924.6919.63 0 1.6112-.7333 2.8092-.7333a3.7579 3.7579 0 0 1 3.1604 1.5802zm-3.7284-2.8918a3.5615 3.5615 0 0 0 .8469-2.22 1.5353 1.5353 0 0 0 -.031-.32 3.5686 3.5686 0 0 0 -2.3445 1.2084 3.4629 3.4629 0 0 0 -.8779 2.1585 1.419 1.419 0 0 0 .031.2892 1.19 1.19 0 0 0 .2169.0207 3.0935 3.0935 0 0 0 2.1586-1.1368z">
-              </path>
-            </svg>
+          <div class="sidebar-portfolio-controls">
+            <button class="sidebar-portfolio-controls-button">Aktienportfolio verwalten</button>
+            <button class="sidebar-portfolio-controls-button button-red" disabled>Zurücksetzen</button>
+          </div>
+          <div class="sidebar-portfolio-item" v-for="stock in banditStore.selectedStocksData" :key="stock.name">
+            <img :src="stock.logo_url" alt="Logo" class="sidebar-portfolio-item-logo" />
             <div class="sidebar-portfolio-item-info">
               <div class="sidebar-portfolio-item-title">
-                Apple (AAPL)
+                {{ stock.name }}
               </div>
               <div class="sidebar-portfolio-item-price">
-                <div>40€</div>
+                <div>{{ stock.price }} €</div>
               </div>
             </div>
             <button class="sidebar-portfolio-item-button" @click="onInvest">
@@ -156,11 +178,34 @@ function onAddStock() {
 }
 
 /* Main Content */
-.starting-capital {
+.capital-box-row {
   color: var(--text-primary);
   font-weight: bold;
   font-size: x-large;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
 }
+
+.capital-invest-counter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.capital-invest-counter-button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
 
 .diagramm-headbar {
   display: flex;
@@ -196,6 +241,7 @@ function onAddStock() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -210,10 +256,14 @@ function onAddStock() {
   background-color: var(--text-secondary);
   padding: 0.5rem;
   border-radius: 10px;
+  margin-top: 0.75rem;
 }
 
 .sidebar-portfolio-item-logo {
   margin-left: 1rem;
+  width: 32px;      /* maximale Breite */
+  height: 32px;     /* maximale Höhe */
+  object-fit: contain;
 }
 
 .sidebar-portfolio-item-title {
@@ -236,5 +286,43 @@ function onAddStock() {
 
 .sidebar-portfolio-item-button {
   margin-right: 1rem;
+  background-color: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-weight: bold;
+  cursor: pointer;
 }
+
+.sidebar-portfolio-item-button:hover {
+  opacity: 0.7;
+}
+
+.sidebar-portfolio-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.sidebar-portfolio-controls-button {
+  background-color: white;
+  border: none;
+  color: black;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.sidebar-portfolio-controls-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button-red {
+  background-color: red !important;
+  color: white !important;
+}
+
 </style>
