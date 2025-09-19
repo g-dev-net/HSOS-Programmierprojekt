@@ -34,12 +34,14 @@ function xGreedy(arms, trials, bandit, epsilon) {
     // Try the arm with best success rate until anotherone is better (greedy)
     // OR try greedy but with probability e a random arm (e-greedy)
     let best_arm_index = 0;
-    let best_arm_value = 0;
     for (let t = 0; t < trials; t++) {
         if (epsilon && Math.random() < val_epsilon) {
             best_arm_index = Math.floor(Math.random() * greedy.length);
         }
         else {
+            // set comparison-value to first so it can be compared
+            // ! Neccessary bc the set value has changed in the loop
+            let best_arm_value = greedy[0].bandit_result;
             for (let i = 0; i < greedy.length; i++) {
                 const current_value = greedy[i].bandit_result;
                 if (current_value > best_arm_value) {
