@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { greedy_bernoulli, greedy_gaussian, init_array_arms } from '../algorithms/greedy.js';
+import { greedy_bernoulli, greedy_gaussian, eGreedy_bernoulli, eGreedy_gaussian, init_array_arms } from '../algorithms/greedy.js';
 
 // Mock-Module vor dem Import, damit die Mocks korrekt funktionieren
 vi.mock('../bandits/bernoulli.js', () => ({
@@ -186,6 +186,62 @@ describe('Greedy Algorithm Tests', () => {
         });
     });
 
+    // Tests für eGreedy_bernoulli
+    describe('eGreedy_bernoulli', () => {
+        it('should call xGreedy function with correct parameters', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.6 },
+                { name: "Arm2", propability: 0.2 }
+            ];
+            const trials = 5;
+            
+            // Mock bernoulli to always return true
+            bernoulliModule.bernoulli.mockReturnValue(true);
+            
+            // Mock Math.random für deterministisches Verhalten (immer > epsilon)
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            const result = eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            expect(result).toHaveLength(2);
+            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+        
+        it('should calculate bandit_result correctly', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.6 }
+            ];
+            const trials = 4;
+            
+            // Mock bernoulli to return alternating values
+            bernoulliModule.bernoulli
+                .mockReturnValueOnce(true)
+                .mockReturnValueOnce(false)
+                .mockReturnValueOnce(true)
+                .mockReturnValueOnce(false);
+            
+            // Mock Math.random um deterministisches Verhalten zu gewährleisten
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            const result = eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            expect(result[0].trial_result).toEqual([true, false, true, false]);
+            expect(result[0].bandit_result).toBe(0.5); // 2 successes out of 4 trials
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+    });
+
     // Tests für greedy_gaussian
     describe('greedy_gaussian', () => {
         it('should call greedy function with correct parameters', () => {
@@ -270,6 +326,62 @@ describe('Greedy Algorithm Tests', () => {
             // Assert
             expect(result[0].trial_result).toEqual([0.5, 0.7, 0.6, 0.8]);
             expect(result[0].bandit_result).toBeCloseTo(0.65, 10); // Average of values
+        });
+    });
+
+    // Tests für eGreedy_gaussian
+    describe('eGreedy_gaussian', () => {
+        it('should call xGreedy function with correct parameters', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", mean: 0.6, variance: 0.1 },
+                { name: "Arm2", mean: 0.2, variance: 0.2 }
+            ];
+            const trials = 5;
+            
+            // Mock gaussian to return a fixed value
+            gaussianModule.gaussian.mockReturnValue(0.5);
+            
+            // Mock Math.random für deterministisches Verhalten (immer > epsilon)
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            const result = eGreedy_gaussian(arms, trials);
+            
+            // Assert
+            expect(result).toHaveLength(2);
+            expect(gaussianModule.gaussian).toHaveBeenCalledTimes(trials);
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+        
+        it('should calculate bandit_result correctly', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", mean: 0.6, variance: 0.1 }
+            ];
+            const trials = 4;
+            
+            // Mock gaussian to return specific values
+            gaussianModule.gaussian
+                .mockReturnValueOnce(0.5)
+                .mockReturnValueOnce(0.7)
+                .mockReturnValueOnce(0.6)
+                .mockReturnValueOnce(0.8);
+            
+            // Mock Math.random um deterministisches Verhalten zu gewährleisten
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            const result = eGreedy_gaussian(arms, trials);
+            
+            // Assert
+            expect(result[0].trial_result).toEqual([0.5, 0.7, 0.6, 0.8]);
+            expect(result[0].bandit_result).toBeCloseTo(0.65, 10);
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
         });
     });
 
@@ -513,6 +625,148 @@ describe('Greedy Algorithm Tests', () => {
             // Assert
             expect(result[0].trial_result).toEqual([true, false, true]);
             expect(result[0].trial_result.length).toBe(trials);
+        });
+    });
+
+    // Tests für die epsilon-Greedy Implementierung (if/else-Verzweigung)
+    describe('epsilon-greedy implementation', () => {
+        // Test für die Exploration (wenn Math.random() < val_epsilon)
+        it('should randomly select an arm when Math.random() < epsilon', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.1 },
+                { name: "Arm2", propability: 0.9 }
+            ];
+            const trials = 5;
+            
+            // Setze das Verhalten von Math.random() für Exploration
+            const mathRandomSpy = vi.spyOn(Math, 'random')
+                .mockReturnValueOnce(0.05) // Unter epsilon (0.1) -> Exploration
+                .mockReturnValueOnce(0.5)  // Floor(0.5 * 2) = 1 -> Zweiter Arm
+                .mockReturnValueOnce(0.05) // Unter epsilon -> Exploration
+                .mockReturnValueOnce(0.0)  // Floor(0.0 * 2) = 0 -> Erster Arm
+                .mockReturnValueOnce(0.05) // Unter epsilon -> Exploration
+                .mockReturnValueOnce(0.9); // Floor(0.9 * 2) = 1 -> Zweiter Arm
+            
+            // Mock bernoulli für konsistente Ergebnisse
+            bernoulliModule.bernoulli.mockReturnValue(true);
+            
+            // Act
+            const result = eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            // Prüfen, ob beide Arme ausgewählt wurden
+            expect(result[0].trial_result.length).toBeGreaterThan(0);
+            expect(result[1].trial_result.length).toBeGreaterThan(0);
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für die Exploitation (wenn Math.random() >= val_epsilon)
+        it('should select the best arm when Math.random() >= epsilon', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.1 },
+                { name: "Arm2", propability: 0.9 }
+            ];
+            const trials = 5;
+            
+            // Mock bernoulli für vorhersehbare Ergebnisse
+            // Mache den zweiten Arm besser als den ersten
+            bernoulliModule.bernoulli.mockImplementation((propability) => {
+                return propability === 0.9; // Nur für Arm2 true zurückgeben
+            });
+            
+            // Setze das Verhalten von Math.random() für Exploitation
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Über epsilon -> Exploitation
+            
+            // Act
+            const result = eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            // Nach Initialisierung sollte der beste Arm (Arm2) öfter ausgewählt werden
+            expect(result[1].trial_result.length).toBeGreaterThan(result[0].trial_result.length);
+            expect(result[1].bandit_result).toBe(1); // 100% Erfolgsrate
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test ob die Variable best_arm_index und best_arm_value korrekt außerhalb der Schleife definiert wurden
+        it('should maintain best arm tracking across multiple trials', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.1 },
+                { name: "Arm2", propability: 0.9 }
+            ];
+            const trials = 10;
+            
+            // Mache den zweiten Arm besser
+            bernoulliModule.bernoulli.mockImplementation((propability) => {
+                return propability === 0.9;
+            });
+            
+            // Setze das Verhalten von Math.random() für deterministische Tests
+            // Alle über epsilon -> immer Exploitation (greedy Auswahl)
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            const result = eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            // Nach Initialisierung sollte der beste Arm (Arm2) die meisten Trials haben
+            expect(result[1].trial_result.length).toBeGreaterThan(result[0].trial_result.length);
+            
+            // Der beste Arm sollte einen hohen bandit_result haben
+            expect(result[1].bandit_result).toBe(1);
+            
+            // Restore Math.random
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test, dass epsilon korrekt als Parameter übergeben wird
+        it('should respect the epsilon parameter for exploration vs exploitation', () => {
+            // Arrange
+            const arms = [
+                { name: "Arm1", propability: 0.5 },
+                { name: "Arm2", propability: 0.5 }
+            ];
+            const trials = 100;
+            
+            // Spioniere Math.random() und Math.floor() aus, ohne das Verhalten zu ändern
+            const mathRandomSpy = vi.spyOn(Math, 'random');
+            const mathFloorSpy = vi.spyOn(Math, 'floor');
+            
+            // Mock bernoulli für konsistente Ergebnisse
+            bernoulliModule.bernoulli.mockReturnValue(true);
+            
+            // Act
+            // Regular greedy sollte nie einen zufälligen Arm auswählen
+            vi.clearAllMocks(); // Zurücksetzen vor dem Test
+            greedy_bernoulli(arms, trials);
+            
+            // Prüfe, dass Math.floor() nicht für die Zufallsauswahl aufgerufen wurde
+            const floorCallsGreedy = mathFloorSpy.mock.calls.length;
+            
+            // Zurücksetzen vor dem eGreedy-Test
+            vi.clearAllMocks();
+            
+            // eGreedy sollte manchmal einen zufälligen Arm auswählen
+            eGreedy_bernoulli(arms, trials);
+            
+            // Assert
+            // Math.floor() sollte für die Zufallsauswahl bei eGreedy öfter aufgerufen werden
+            expect(mathFloorSpy.mock.calls.length).toBeGreaterThan(floorCallsGreedy);
+            
+            // Math.random() sollte bei eGreedy für beide Zwecke aufgerufen werden:
+            // 1. Für epsilon-Vergleich
+            // 2. Für die Zufallsauswahl eines Arms
+            expect(mathRandomSpy).toHaveBeenCalled();
+            
+            // Restore spies
+            mathRandomSpy.mockRestore();
+            mathFloorSpy.mockRestore();
         });
     });
 });

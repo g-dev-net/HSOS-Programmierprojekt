@@ -2,29 +2,50 @@
 import { bernoulli } from '../bandits/bernoulli.js';
 import { gaussian } from '../bandits/gaussian.js';
 
+const val_epsilon = 0.1;
+
 function greedy_bernoulli(arms, trials) {
     const bandit = 'bernoulli';
-    return greedy(arms, trials, bandit);
+    const epsilon = false;
+    return xGreedy(arms, trials, bandit, epsilon);
+}
+
+function eGreedy_bernoulli(arms, trials) {
+    const bandit = 'bernoulli';
+    const epsilon = true;
+    return xGreedy(arms, trials, bandit, epsilon);
 }
 
 function greedy_gaussian(arms,trials) {
     const bandit = 'gaussian';
-    return greedy(arms, trials, bandit);
+    const epsilon = false;
+    return xGreedy(arms, trials, bandit, epsilon);
 }
 
-function greedy(arms, trials, bandit) {
+function eGreedy_gaussian(arms, trials) {
+    const bandit = 'gaussian';
+    const epsilon = true;
+    return xGreedy(arms, trials, bandit, epsilon);
+}
+
+function xGreedy(arms, trials, bandit, epsilon) {
     const greedy = init_array_arms(arms);
 
-    // Try the arm with best success rate until anotherone is better
+    // Try the arm with best success rate until anotherone is better (greedy)
+    // OR try greedy but with probability e a random arm (e-greedy)
+    let best_arm_index = 0;
+    let best_arm_value = 0;
     for (let t = 0; t < trials; t++) {
-        let best_arm_index = 0;
-        let best_arm_value = -1;
-
-        for (let i = 0; i < greedy.length; i++) {
-            const current_value = greedy[i].bandit_result;
-            if (current_value > best_arm_value) {
-                best_arm_value = current_value;
-                best_arm_index = i;
+        if (epsilon && Math.random() < val_epsilon) {
+            best_arm_index = Math.floor(Math.random() * greedy.length);
+        }
+        else {
+            for (let i = 0; i < greedy.length; i++) {
+                const current_value = greedy[i].bandit_result;
+                if (current_value > best_arm_value) {
+                    best_arm_value = current_value;
+                    best_arm_index = i;
+                }
             }
         }
 
@@ -58,4 +79,4 @@ function init_array_arms(arms) {
     return greedy;
 }
 
-export { greedy_bernoulli, greedy_gaussian, init_array_arms }
+export { greedy_bernoulli, eGreedy_bernoulli, greedy_gaussian, eGreedy_gaussian, init_array_arms }
