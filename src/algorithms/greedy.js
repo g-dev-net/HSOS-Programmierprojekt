@@ -3,8 +3,18 @@ import { bernoulli } from '../bandits/bernoulli.js';
 import { gaussian } from '../bandits/gaussian.js';
 
 function greedy_bernoulli(arms, trials) {
+    const bandit = 'bernoulli';
+    return greedy(arms, trials, bandit);
+}
+
+function greedy_gaussian(arms,trials) {
+    const bandit = 'gaussian';
+    return greedy(arms, trials, bandit);
+}
+
+function greedy(arms, trials, bandit) {
     const greedy = init_array_arms(arms);
-    
+
     // Try the arm with best success rate until anotherone is better
     for (let t = 0; t < trials; t++) {
         let best_arm_index = 0;
@@ -19,16 +29,18 @@ function greedy_bernoulli(arms, trials) {
         }
 
         const chosen_arm = greedy[best_arm_index];
-        chosen_arm.trial_result.push(bernoulli(arms[best_arm_index].propability));
-        chosen_arm.bandit_result = chosen_arm.trial_result.reduce((sum, result) => sum + (result ? 1 : 0), 0) / chosen_arm.trial_result.length;
+        switch (bandit) {
+            case 'bernoulli':
+                chosen_arm.trial_result.push(bernoulli(arms[best_arm_index].propability));
+                chosen_arm.bandit_result = chosen_arm.trial_result.reduce((sum, result) => sum + (result ? 1 : 0), 0) / chosen_arm.trial_result.length;
+                break;
+            case 'gaussian':
+                chosen_arm.trial_result.push(gaussian(arms[best_arm_index].mean, arms[best_arm_index].variance));
+                chosen_arm.bandit_result = chosen_arm.trial_result.reduce((sum, result) => sum + result, 0) / chosen_arm.trial_result.length;
+                break;
+        }
     }
-
-    return greedy;
-}
-
-function greedy_gaussian(arms) {
-    const greedy = init_array_arms(arms);
-
+    
     return greedy;
 }
 
@@ -47,10 +59,3 @@ function init_array_arms(arms) {
 }
 
 export { greedy_bernoulli, greedy_gaussian, init_array_arms }
-
-// Array arms
-// const arms = [
-//     {name: "Arm1", propability: 0.6},
-//     {name: "Arm2", propability: 0.2},
-//     {name: "Arm3", propability: 1.0}
-// ]
