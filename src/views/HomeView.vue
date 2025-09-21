@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
 import { type Ref, ref } from 'vue';
-import stocks from '@/data/aktien.json';
 import { useBanditStore } from '@/stores/bandit';
+import Modal from '@/components/Modal.vue';
+import stocks from '@/data/aktien.json'
 
 const banditStore = useBanditStore();
+const showStockManager = ref(false);
 
 const algorithms = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
@@ -17,8 +19,9 @@ function onInvest() {
   console.log('Invest clicked');
 }
 
-function onAddStock() {
+function onEditStock() {
   console.log('Add stock clicked');
+  showStockManager.value = true;
 }
 
 </script>
@@ -104,20 +107,20 @@ function onAddStock() {
         <div class="sidebar-portfolio">
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
-            <button class="sidebar-portfolio-controls-button">Aktienportfolio verwalten</button>
-            <button class="sidebar-portfolio-controls-button button-red" disabled>Zurücksetzen</button>
+            <button class="white-button" @click="onEditStock">Aktienportfolio verwalten</button>
+            <button class="white-button button-red" disabled>Zurücksetzen</button>
           </div>
-          <div class="sidebar-portfolio-item" v-for="stock in banditStore.selectedStocksData" :key="stock.name">
-            <img :src="stock.logo_url" alt="Logo" class="sidebar-portfolio-item-logo" />
-            <div class="sidebar-portfolio-item-info">
-              <div class="sidebar-portfolio-item-title">
+          <div class="portfolio-item" v-for="stock in banditStore.selectedStocksData" :key="stock.name">
+            <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+            <div class="portfolio-item-info">
+              <div class="portfolio-item-title">
                 {{ stock.name }}
               </div>
-              <div class="sidebar-portfolio-item-price">
+              <div class="portfolio-item-price">
                 <div>{{ stock.price }} €</div>
               </div>
             </div>
-            <button class="sidebar-portfolio-item-button" @click="onInvest">
+            <button class="portfolio-item-button" @click="onInvest">
               Investieren
             </button>
           </div>
@@ -125,6 +128,39 @@ function onAddStock() {
       </div>
     </div>
   </div>
+  <Modal v-model="showStockManager" :close-on-backdrop="true" :close-on-esc="true">
+    <template #header>
+      <h2 class="modal_stockManager_title">Portfolio bearbeiten</h2>
+    </template>
+    <div>
+      <div>
+        Hier können Sie Ihr Aktienportfolio verwalten. Wählen Sie aus der Liste der verfügbaren Aktien diejenigen aus, die Sie in Ihr Portfolio aufnehmen möchten.
+      </div>
+      <div class="modal-stocklist">
+        <div class="portfolio-item" v-for="stock in stocks" :key="stock.name">
+            <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+            <div class="portfolio-item-info">
+              <div class="portfolio-item-title">
+                {{ stock.name }}
+              </div>
+              <div class="portfolio-item-price">
+                <div>{{ stock.price }} €</div>
+              </div>
+            </div>
+            <input type="checkbox" class="portfolio-item-checkbox"></input>
+          </div>   
+      </div>
+      <div>
+        Nachdem Sie Ihre Auswahl getroffen haben, klicken Sie auf "Speichern", um die Änderungen zu übernehmen, oder auf "Abbrechen", um ohne Änderungen zurückzukehren.
+      </div>
+    </div>
+    <template #footer>
+      <div class="modal_stockManager_footer">
+        <button class="white-button button-red" type="button" @click="showStockManager = false">Abbrechen</button>
+        <button class="white-button" type="button" @click="">Speichern</button>
+      </div>
+    </template>
+  </Modal>
 </template>
 <style scoped>
 /* Base layout */
@@ -249,7 +285,7 @@ function onAddStock() {
   width: 100%;
 }
 
-.sidebar-portfolio-item {
+.portfolio-item {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -259,19 +295,19 @@ function onAddStock() {
   margin-top: 0.75rem;
 }
 
-.sidebar-portfolio-item-logo {
+.portfolio-item-logo {
   margin-left: 1rem;
-  width: 32px;      /* maximale Breite */
-  height: 32px;     /* maximale Höhe */
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
-.sidebar-portfolio-item-title {
+.portfolio-item-title {
   font-weight: bold;
   font-size: large;
 }
 
-.sidebar-portfolio-item-info {
+.portfolio-item-info {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -280,11 +316,11 @@ function onAddStock() {
   margin-left: 1rem;
 }
 
-.sidebar-portfolio-item-price {
+.portfolio-item-price {
   display: flex;
 }
 
-.sidebar-portfolio-item-button {
+.portfolio-item-button {
   margin-right: 1rem;
   background-color: transparent;
   border: none;
@@ -293,8 +329,13 @@ function onAddStock() {
   cursor: pointer;
 }
 
-.sidebar-portfolio-item-button:hover {
+.portfolio-item-button:hover {
   opacity: 0.7;
+}
+
+.portfolio-item-checkbox {
+  margin-right: 1rem;
+  cursor: pointer;
 }
 
 .sidebar-portfolio-controls {
@@ -305,24 +346,17 @@ function onAddStock() {
   width: 100%;
 }
 
-.sidebar-portfolio-controls-button {
-  background-color: white;
-  border: none;
-  color: black;
-  font-weight: bold;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  cursor: pointer;
+/* Stock Manager Modal */
+.modal_stockManager_footer {
+  display: flex;
+  gap: .5rem;
+  justify-content: space-between;
+  width: 100%;
 }
 
-.sidebar-portfolio-controls-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.button-red {
-  background-color: red !important;
-  color: white !important;
+.modal-stocklist {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
 </style>
