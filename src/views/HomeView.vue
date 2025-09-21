@@ -108,13 +108,13 @@ function saveStocks() {
             <div class="capital-box-row">
               <div>Investments:</div>
               <div class="capital-invest-counter">
-                <button class="capital-invest-counter-button">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments--" :disabled="banditStore.possibleInvestments <= 1">
                   <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
                 </button>
                 <div>
-                  10
+                  {{ banditStore.possibleInvestments }}
                 </div>
-                <button class="capital-invest-counter-button">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments++" :disabled="banditStore.possibleInvestments >= 100">
                   <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
                 </button>
               </div>
