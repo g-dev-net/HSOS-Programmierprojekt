@@ -1,29 +1,55 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
-import { type Ref, ref } from 'vue';
+import { type Ref, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
 
+// variables
 const banditStore = useBanditStore();
 const showStockManager = ref(false);
 
+// algorithm selection
 const algorithms = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
   { name: 'Bernoulli-Bandit', key: 'bernoulli' },
 ];
-
 const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
 
 function onInvest() {
   console.log('Invest clicked');
 }
 
+// open stock manager modal
 function onEditStock() {
-  console.log('Add stock clicked');
   showStockManager.value = true;
 }
 
+// Local state for stock selection in modal
+const selectedStockIndexes = ref<number[]>([]);
+
+// Sync modal selection with store when modal opens
+watch(showStockManager, (open) => {
+  if (open) {
+    selectedStockIndexes.value = [...banditStore.selectedStocks];
+  }
+});
+
+// Toggle selection in modal
+function toggleStock(index: number) {
+  const idx = selectedStockIndexes.value.indexOf(index);
+  if (idx === -1) {
+    selectedStockIndexes.value.push(index);
+  } else {
+    selectedStockIndexes.value.splice(idx, 1);
+  }
+}
+
+// Save selection to store
+function saveStocks() {
+  banditStore.selectedStocks = [...selectedStockIndexes.value];
+  showStockManager.value = false;
+}
 </script>
 
 <template>
@@ -137,18 +163,23 @@ function onEditStock() {
         Hier können Sie Ihr Aktienportfolio verwalten. Wählen Sie aus der Liste der verfügbaren Aktien diejenigen aus, die Sie in Ihr Portfolio aufnehmen möchten.
       </div>
       <div class="modal-stocklist">
-        <div class="portfolio-item" v-for="stock in stocks" :key="stock.name">
-            <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
-            <div class="portfolio-item-info">
-              <div class="portfolio-item-title">
-                {{ stock.name }}
-              </div>
-              <div class="portfolio-item-price">
-                <div>{{ stock.price }} €</div>
-              </div>
+        <div class="portfolio-item" v-for="(stock, idx) in stocks" :key="stock.name">
+          <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+          <div class="portfolio-item-info">
+            <div class="portfolio-item-title">
+              {{ stock.name }}
             </div>
-            <input type="checkbox" class="portfolio-item-checkbox"></input>
-          </div>   
+            <div class="portfolio-item-price">
+              <div>{{ stock.price }} €</div>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="portfolio-item-checkbox"
+            :checked="selectedStockIndexes.includes(idx)"
+            @change="toggleStock(idx)"
+          />
+        </div>
       </div>
       <div>
         Nachdem Sie Ihre Auswahl getroffen haben, klicken Sie auf "Speichern", um die Änderungen zu übernehmen, oder auf "Abbrechen", um ohne Änderungen zurückzukehren.
@@ -157,7 +188,7 @@ function onEditStock() {
     <template #footer>
       <div class="modal_stockManager_footer">
         <button class="white-button button-red" type="button" @click="showStockManager = false">Abbrechen</button>
-        <button class="white-button" type="button" @click="">Speichern</button>
+        <button class="white-button" type="button" @click="saveStocks">Speichern</button>
       </div>
     </template>
   </Modal>
