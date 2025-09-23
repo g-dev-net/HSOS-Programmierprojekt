@@ -4,21 +4,18 @@ import { type Ref, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
+import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
 
 // variables
 const banditStore = useBanditStore();
 const showStockManager = ref(false);
 
 // algorithm selection
-const algorithms = [
+const bandits = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
   { name: 'Bernoulli-Bandit', key: 'bernoulli' },
 ];
-const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
-
-function onInvest() {
-  console.log('Invest clicked');
-}
+const activeBandit: Ref<string> = ref(bandits[0].key);
 
 // open stock manager modal
 function onEditStock() {
@@ -31,7 +28,7 @@ const selectedStockIndexes = ref<number[]>([]);
 // Sync modal selection with store when modal opens
 watch(showStockManager, (open) => {
   if (open) {
-    selectedStockIndexes.value = [...banditStore.selectedStocks];
+    selectedStockIndexes.value = [...banditStore.selectedStocks.map(stock => stock.stock)];
   }
 });
 
@@ -47,9 +44,29 @@ function toggleStock(index: number) {
 
 // Save selection to store
 function saveStocks() {
-  banditStore.selectedStocks = [...selectedStockIndexes.value];
+  banditStore.selectedStocks = selectedStockIndexes.value.map(stock => ({
+    stock,
+    bernoulli_param: generateBernoulliParam(),
+    gaussian_param: generateGaussianParam(),
+  }));
   showStockManager.value = false;
 }
+
+function onInvest(stockIndex: number) {
+  const stock = banditStore.selectedStocksData[stockIndex];
+  if (stock) {
+    console.log('Invest clicked ', stock.name, stock.bernoulli_param, stock.gaussian_param, stockIndex);
+    if (!banditStore.banditInProgress) {
+      banditStore.banditInProgress = true;
+    }
+    if (activeBandit.value === 'gaussian') {
+     // HIER Logik für Gaussian Bandit
+    } else if (activeBandit.value === 'bernoulli') {
+     // HIER Logik für Bernoulli Bandit
+    }
+  }
+}
+
 </script>
 
 <template>
@@ -57,9 +74,9 @@ function saveStocks() {
     <!-- Headbar -->
     <div class="main-home-headbar">
       <div class="text-nav-button-group">
-        <div v-for="algo in algorithms" class="text-nav-button" :key="algo.key"
-          :class="{ active: activeAlgorithm === algo.key }" @click="activeAlgorithm = algo.key">
-          {{ algo.name }}
+        <div v-for="bandit in bandits" class="text-nav-button" :key="bandit.key"
+          :class="{ active: activeBandit === bandit.key }" @click="activeBandit = bandit.key">
+          {{ bandit.name }}
         </div>
       </div>
       <div class="main-home-headbar-theory-button">
@@ -108,13 +125,13 @@ function saveStocks() {
             <div class="capital-box-row">
               <div>Investments:</div>
               <div class="capital-invest-counter">
-                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments--" :disabled="banditStore.possibleInvestments <= 1">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments--" :disabled="banditStore.possibleInvestments <= 1" v-if="banditStore.banditInProgress === false">
                   <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
                 </button>
                 <div>
                   {{ banditStore.possibleInvestments }}
                 </div>
-                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments++" :disabled="banditStore.possibleInvestments >= 100">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments++" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
                   <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
                 </button>
               </div>
@@ -133,20 +150,16 @@ function saveStocks() {
         <div class="sidebar-portfolio">
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
-            <button class="white-button" @click="onEditStock">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" disabled>Zurücksetzen</button>
+            <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
+            <button class="white-button button-red" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
-          <div class="portfolio-item" v-for="stock in banditStore.selectedStocksData" :key="stock.name">
+          <div class="portfolio-item" v-for="(stock, index) in banditStore.selectedStocksData" :key="stock.name">
             <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
             <div class="portfolio-item-info">
-              <div class="portfolio-item-title">
-                {{ stock.name }}
-              </div>
-              <div class="portfolio-item-price">
-                <div>{{ stock.price }} €</div>
-              </div>
+              <div class="portfolio-item-title">{{ stock.name }}</div>
+              <div class="portfolio-item-price">{{ stock.price }} €</div>
             </div>
-            <button class="portfolio-item-button" @click="onInvest">
+            <button class="portfolio-item-button" @click="onInvest(index)">
               Investieren
             </button>
           </div>
