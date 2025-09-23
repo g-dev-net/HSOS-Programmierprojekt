@@ -111,7 +111,7 @@ function onInvest(stockIndex: number) {
                 Startkapital:
               </div>
               <div>
-                10.000€
+                {{ banditStore.startingCapital }} €
               </div>
             </div>
             <div class="capital-box-row">
@@ -119,21 +119,29 @@ function onInvest(stockIndex: number) {
                 Restkapital:
               </div>
               <div>
-                10.000€
+                {{ banditStore.remainingCapital }} €
               </div>
             </div>
             <div class="capital-box-row">
               <div>Investments:</div>
               <div class="capital-invest-counter">
-                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments--" :disabled="banditStore.possibleInvestments <= 1" v-if="banditStore.banditInProgress === false">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments = banditStore.possibleInvestments - 2" :disabled="banditStore.possibleInvestments <= 2" v-if="banditStore.banditInProgress === false">
                   <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
                 </button>
                 <div>
                   {{ banditStore.possibleInvestments }}
                 </div>
-                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments++" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments  = banditStore.possibleInvestments + 2" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
                   <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
                 </button>
+              </div>
+            </div>
+            <div class="capital-box-row">
+              <div>
+                Per Investment:
+              </div>
+              <div>
+                {{ banditStore.investmentStep }} €
               </div>
             </div>
           </div>

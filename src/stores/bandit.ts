@@ -6,7 +6,10 @@ import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/ba
 
 export const useBanditStore = defineStore('bandit', () => {
 
+  const startingCapital = ref(10000)
+  const remainingCapital = ref(startingCapital.value) // TODO - anzahl investments
   const possibleInvestments = ref(10)
+  const investmentStep = computed(() => Math.round(startingCapital.value / possibleInvestments.value))
 
   // Liste mit den ausgewählten Aktien und deren Parametern
   const selectedStocks = ref<selectedStock[]>([
@@ -29,5 +32,5 @@ export const useBanditStore = defineStore('bandit', () => {
   // Liste mit Investments und deren Parametern
   const investments = ref<{ stock: number; amount: number }[]>([])
 
-  return { selectedStocks, selectedStocksData, possibleInvestments, investments, banditInProgress }
+  return { selectedStocks, selectedStocksData, startingCapital, remainingCapital, possibleInvestments, investmentStep, investments, banditInProgress }
 })
