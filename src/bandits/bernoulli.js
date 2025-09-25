@@ -1,43 +1,40 @@
-export const bernoulli_bandits = [];
+export const bernoulli_arms = [];
 
-export function generate_bernoulli_bandit(aktie) {
+export function bernoulli_generate_arm(arm_id) {
   const p = Math.random() * 0.98 + 0.01;
-  const result = { aktie, p_gewinn: p };
+  const arm = { arm_id, win_prob: p };
 
-  const idx = bernoulli_bandits.findIndex(eintrag => eintrag.aktie === aktie);
+  const idx = bernoulli_arms.findIndex(a => a.arm_id === arm_id);
   if (idx >= 0) {
-    bernoulli_bandits[idx] = result;
+    bernoulli_arms[idx] = arm;
   } else {
-    bernoulli_bandits.push(result);
+    bernoulli_arms.push(arm);
   }
 
-  return result;
+  return arm;
 }
 
+export const bernoulli_pulls = [];
 
-
-export const bernoulli_zuege = [];
-
-export function fuehre_bernoulli_zug_aus(aktie, bernoulliArray) {
-  if (typeof aktie !== "string" || !aktie.trim()) {
-    throw new Error("Parameter 'aktie' muss eine nichtleere Zeichenkette sein.");
+export function bernoulli_pull_arm(arm_id, bernoulli_arms_array) {
+  if (typeof arm_id !== "string" || !arm_id.trim()) {
+    throw new Error("Parameter 'arm_id' must be a nonempty string.");
   }
-  if (!Array.isArray(bernoulliArray)) {
-    throw new Error("Parameter 'bernoulliArray' muss ein Array sein.");
+  if (!Array.isArray(bernoulli_arms_array)) {
+    throw new Error("Parameter 'bernoulli_arms_array' must be an array.");
   }
 
-  const eintrag = bernoulliArray.find(e => e.aktie === aktie);
-  if (!eintrag) {
-    throw new Error(`Keine Gewinnwahrscheinlichkeit für Aktie '${aktie}' gefunden.`);
+  const arm = bernoulli_arms_array.find(a => a.arm_id === arm_id);
+  if (!arm) {
+    throw new Error(`No win probability found for arm '${arm_id}'.`);
   }
 
-  const u = Math.random();
-  const gewonnen = u <= eintrag.p_gewinn;
+  const won = Math.random() <= arm.win_prob;
 
-  // Globale, fortlaufende Zugnummer
-  const zug = bernoulli_zuege.length + 1;
+  // pull number
+  const pull_number = bernoulli_pulls.length + 1;
 
-  const result = { aktie, zug, gewonnen };
-  bernoulli_zuege.push(result);
+  const result = { arm_id, pull_number, won };
+  bernoulli_pulls.push(result);
   return result;
 }
