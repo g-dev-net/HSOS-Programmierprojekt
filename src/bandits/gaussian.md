@@ -1,269 +1,203 @@
-Bernoulli Bandits: Technical Documentation
-Overview
+# Gaussian Arms Module
 
-This module provides a minimal infrastructure for Bernoulli bandits. It supports generating and updating a win probability per stock symbol and executing single Bernoulli pulls. It is intended for simple simulations in a multi armed bandit setting and as a utility for higher level algorithms.
+In memory utilities for simulating Gaussian bandit pulls where each arm has a mean return that scales with an investment volume. The module exposes helpers to create or update arms and to record pulls.
 
-Exported API
+> File context: JavaScript ES modules. Works in Node and in the browser.
 
-bernoulli_bandits: Array<{ aktie: string, p_gewinn: number }>
+## Install
 
-generate_bernoulli_bandit(aktie: string): { aktie: string, p_gewinn: number }
-
-bernoulli_zuege: Array<{ aktie: string, zug: number, gewonnen: boolean }>
-
-fuehre_bernoulli_zug_aus(aktie: string, bernoulliArray: Array<{ aktie: string, p_gewinn: number }>): { aktie: string, zug: number, gewonnen: boolean }
-
-Data Structures
-Entry in bernoulli_bandits
-type BanditEntry = {
-  aktie: string;      // stock symbol or name
-  p_gewinn: number;   // win probability in [0, 1]
-};
-
-Entry in bernoulli_zuege
-type PullEntry = {
-  aktie: string;      // stock pulled
-  zug: number;        // global consecutive pull number
-  gewonnen: boolean;  // Bernoulli outcome
-};
-
-Functions
-generate_bernoulli_bandit(aktie)
-
-Creates or updates a Bernoulli bandit entry for the given stock.
-
-Parameters
-
-aktie non empty string with the stock name
-
-Logic
-
-Draw p_gewinn = Math.random() * 0.98 + 0.01 which lies in the open interval (0.01, 0.99).
-
-Replace existing entry for aktie or push a new one.
-
-Return the entry.
-
-Returns
-
-{ aktie, p_gewinn }
-
-Side effects
-
-Writes to the global array bernoulli_bandits.
-
-Example
-
-import { bernoulli_bandits, generate_bernoulli_bandit } from './bernoulli.js';
-generate_bernoulli_bandit('AAPL');
-
-fuehre_bernoulli_zug_aus(aktie, bernoulliArray)
-
-Executes a single Bernoulli pull for the given stock using probabilities from bernoulliArray (typically bernoulli_bandits).
-
-Parameters
-
-aktie non empty string with the stock name
-
-bernoulliArray array of { aktie, p_gewinn }
-
-Validation
-
-Throws Error if aktie is not a non empty string
-
-Throws Error if bernoulliArray is not an array
-
-Throws Error if no entry for aktie exists
-
-Logic
-
-Find { p_gewinn } for aktie.
-
-Draw u = Math.random().
-
-Set gewonnen = u <= p_gewinn.
-
-Set zug = bernoulli_zuege.length + 1.
-
-Append { aktie, zug, gewonnen } to bernoulli_zuege and return it.
-
-Returns
-
-{ aktie, zug, gewonnen }
-
-Algorithmic Details
-
-Outcome model per pull: Bernoulli with parameter p_gewinn
-
-Global pull numbering across all stocks
-
-generate_bernoulli_bandit replaces an existing probability for a stock
-
-Complexity
-
-generate_bernoulli_bandit: O(n) search then O(1) update or insert
-
-fuehre_bernoulli_zug_aus: O(n) search then O(1) append
-
-Error Messages
-
-Parameter 'aktie' muss eine nichtleere Zeichenkette sein.
-
-Parameter 'bernoulliArray' muss ein Array sein.
-
-Keine Gewinnwahrscheinlichkeit für Aktie '<name>' gefunden.
-
-Randomness and Reproducibility
-
-Uses Math.random. For reproducibility inject a seeded PRNG or mock Math.random in tests.
-
-State Management
-
-bernoulli_bandits and bernoulli_zuege are module level mutable arrays
-
-For isolated simulations keep separate arrays and pass them explicitly
-
-Gaussian Bandits: Technical Documentation
-Overview
-
-This module provides utilities for Gaussian bandits. It lets you generate or overwrite Gaussian bandit parameters per stock and execute single pulls that sample from a normal distribution. It is intended for simulations in a multi armed bandit setting or as a building block for higher level algorithms.
-
-Installation
+```bash
 npm i d3-random
+```
 
-Exported API
+## Exports
 
-gaussian_banditen: Array<{ aktie: string, investitionsvolumen: number, mu: number, sigma: number }>
+```js
+export const gaussian_arms = [];
+export const gaussian_pulls = [];
 
-gaussian_zuege: Array<{ aktie: string, zug: number, wert: number, mu: number, sigma: number }>
+export function gaussian_generate_arm(arm_id, investment_volume) { ... }
+export function gaussian_pull_arm(arm_id, gaussian_arms_array = gaussian_arms) { ... }
+```
 
-generiere_gaussian_bandit(aktie: string, investitionsvolumen: number): { aktie: string, investitionsvolumen: number, mu: number, sigma: number }
+## Data model
 
-fuehre_gaussian_zug_aus(aktie: string, banditArray?: Array<{ aktie: string, investitionsvolumen: number, mu: number, sigma: number }>): { aktie: string, zug: number, wert: number, mu: number, sigma: number }
+### Arm
 
-Data Structures
-Entry in gaussian_banditen
-type GaussianBandit = {
-  aktie: string;
-  investitionsvolumen: number;
-  mu: number;
-  sigma: number;
-};
+```ts
+type GaussianArm = {
+  arm_id: string
+  investment_volume: number        // > 0
+  mu_percent: number               // r in [-0.1, 0.1]
+  mu_absolute: number              // r * volume + volume
+}
+```
 
-Entry in gaussian_zuege
-type GaussianZug = {
-  aktie: string;
-  zug: number;
-  wert: number;
-  mu: number;
-  sigma: number;
-};
+`mu_percent` is the expected percentage return for the arm. `mu_absolute` is the expected absolute value after investing `investment_volume`.
 
-Functions
-generiere_gaussian_bandit(aktie, investitionsvolumen)
+### Pull result
 
-Creates or overwrites a Gaussian bandit entry for the given stock.
+```ts
+type GaussianPull = {
+  arm_id: string
+  pull_number: number              // global 1-based counter
+  value: number                    // realized absolute value
+  value_percent: number            // realized percentage return
+  mu_percent: number               // arm mean in percent at the time of pull
+  mu_absolute: number              // arm mean in absolute terms at the time of pull
+}
+```
 
-Parameters
+All state is kept in memory.
 
-aktie non empty string with the stock name
+* `gaussian_arms`: list of `GaussianArm`
+* `gaussian_pulls`: append-only list of `GaussianPull`
 
-investitionsvolumen positive number
+## How the model works
+
+* Arm creation sets a mean percentage return `r` drawn uniformly from `[-0.1, 0.1]`.
+* The absolute mean becomes `mu_absolute = r * volume + volume`.
+* A pull samples `z` from a normal distribution `N(r, 0.5^2)` using `d3-random`.
+* The realized absolute value is `value = z * volume + volume`.
+* The realized percentage return is `(value - volume) / volume`.
+
+## API
+
+### `gaussian_generate_arm(arm_id: string, investment_volume: number): GaussianArm`
+
+Creates or overwrites an arm with identifier `arm_id` and a positive `investment_volume`.
+
+Behavior
+
+* Validates inputs.
+* Draws `r` uniformly from `[-0.1, 0.1]`.
+* Computes `mu_absolute = r * volume + volume`.
+* Inserts or replaces the arm in `gaussian_arms`.
+* Returns the created or updated arm.
 
 Validation
 
-Throws Error if aktie is not a non empty string
-
-Throws Error if investitionsvolumen is not a positive finite number
-
-Logic
-
-Convert investitionsvolumen to vol.
-
-Draw mu uniformly in [0.9 * vol, 1.1 * vol].
-
-Set sigma = 0.10 * vol.
-
-Create { aktie, investitionsvolumen: vol, mu, sigma }.
-
-Replace existing entry for aktie or push a new one.
-
-Return the entry.
-
-Returns
-
-{ aktie, investitionsvolumen, mu, sigma }
+* `arm_id` must be a nonempty string.
+* `investment_volume` must be a positive finite number.
 
 Side effects
 
-Writes to gaussian_banditen.
+* Mutates the exported `gaussian_arms` array.
 
-fuehre_gaussian_zug_aus(aktie, banditArray = gaussian_banditen)
+---
 
-Draws a single sample from N(mu, sigma^2) for the specified stock.
+### `gaussian_pull_arm(arm_id: string, gaussian_arms_array: GaussianArm[] = gaussian_arms): GaussianPull`
 
-Parameters
+Simulates a Gaussian pull for the arm with id `arm_id`. Uses `d3-random` to draw from `N(mu_percent, 0.5)`.
 
-aktie non empty string with the stock name
+Behavior
 
-banditArray optional array of Gaussian bandit entries
+* Validates inputs and looks up the arm in `gaussian_arms_array`.
+* Samples `z ~ N(arm.mu_percent, 0.5^2)` with `randomNormal`.
+* Computes `value = z * arm.investment_volume + arm.investment_volume`.
+* Computes `value_percent = (value - arm.investment_volume) / arm.investment_volume`.
+* Appends the result to `gaussian_pulls` with an increasing `pull_number`.
+* Returns the pull record.
 
 Validation
 
-Throws Error if aktie is not a non empty string
+* `arm_id` must be a nonempty string.
+* `gaussian_arms_array` must be an array.
+* Throws if the arm is not found.
 
-Throws Error if banditArray is not an array
+Side effects
 
-Throws Error if no entry for aktie exists
+* Mutates the exported `gaussian_pulls` array.
 
-Logic
+## Examples
 
-Find { mu, sigma } for aktie.
+Create or refresh an arm and run a few pulls.
 
-Create a sampler with randomNormal(mu, sigma) from d3-random.
+```js
+import {
+  gaussian_arms,
+  gaussian_pulls,
+  gaussian_generate_arm,
+  gaussian_pull_arm
+} from "./gaussian.js";
 
-Sample wert = sampler().
+const armA = gaussian_generate_arm("A", 1_000);
 
-Set zug = gaussian_zuege.length + 1.
+for (let i = 0; i < 3; i++) {
+  const res = gaussian_pull_arm("A"); // uses default gaussian_arms
+  console.log(res);
+}
 
-Append { aktie, zug, wert, mu, sigma } to gaussian_zuege and return it.
+console.log("Arms", gaussian_arms);
+console.log("Total pulls", gaussian_pulls.length);
+```
 
-Returns
+Work with a custom arm array.
 
-{ aktie, zug, wert, mu, sigma }
+```js
+const local_arms = [];
+local_arms.push(gaussian_generate_arm("X", 500));
+const r1 = gaussian_pull_arm("X", local_arms);
+```
 
-Algorithmic Details
+Reset state for a fresh experiment.
 
-Outcome model per pull: normal distribution with mean mu and standard deviation sigma
+```js
+gaussian_arms.length = 0;
+gaussian_pulls.length = 0;
+```
 
-Parameter generation: mu within a band around the volume, sigma fixed at 10 percent of the volume
+## Deterministic testing
 
-Global pull numbering across all stocks
+This module uses `d3-random` for normal draws and `Math.random` for the uniform draw during arm generation. For reproducible tests:
 
-Repeated generation for the same stock overwrites parameters
+* Seed `d3-random` by providing your own PRNG. For example:
 
-Complexity
+```js
+import { randomNormal } from "d3-random";
 
-generiere_gaussian_bandit: O(n) search then O(1) update or insert
+// simple seeded LCG for tests
+function lcg(seed = 123456789) {
+  let s = seed >>> 0;
+  return () => {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return (s >>> 8) / 0x01000000;
+  };
+}
 
-fuehre_gaussian_zug_aus: O(n) search then O(1) append
+const rng = lcg(42);
+const normal = randomNormal.source(rng)(0, 1); // z ~ N(0, 1)
+```
 
-Error Messages
+* Monkey patch `Math.random` around `gaussian_generate_arm` to control `r` in tests, and restore it after the test.
 
-Parameter 'aktie' muss eine nichtleere Zeichenkette sein.
+## Performance notes
 
-Parameter 'investitionsvolumen' muss eine positive Zahl sein.
+* `gaussian_generate_arm` uses `findIndex` which is O(n).
+* `gaussian_pull_arm` uses `find` which is O(n).
+* Appending to `gaussian_pulls` is O(1) amortized.
 
-Parameter 'banditArray' muss ein Array sein.
+For many arms consider an index map `{ [arm_id]: number }` that points into `gaussian_arms`.
 
-Keine Parameter für Gaussian Bandit der Aktie '<name>' gefunden.
+## State management tips
 
-Randomness and Reproducibility
+* The arrays are module-level singletons. Multiple imports in one process share the same state.
+* `pull_number` counts globally across all arms. If you need per arm counters, track a separate map.
 
-Sampling uses d3-random. For reproducibility inject a seeded PRNG or mock randomNormal and Math.random in tests.
+## Safety and randomness
 
-State Management
+* `Math.random` is not cryptographically secure. The uniform draw for `r` is intended for simulation only.
+* `d3-random` relies on the host PRNG by default. Provide a seeded PRNG for reproducible tests as shown above.
 
-gaussian_banditen and gaussian_zuege are module level mutable arrays
+## Limitations
 
-For isolated simulations maintain separate arrays and pass them explicitly
+* No persistence. State is lost across reloads.
+* No concurrency control. Mutations are not atomic.
+* Fixed normal standard deviation `sigma = 0.5`. Consider making it configurable if needed.
+
+## Future extensions
+
+* Add setters to pin `mu_percent` for deterministic scenarios.
+* Make `sigma` a parameter of `gaussian_pull_arm`.
+* Provide pure functions that accept and return state instead of mutating module singletons.
+* Add summary helpers for mean, variance, and win rates per arm.
