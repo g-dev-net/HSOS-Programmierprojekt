@@ -5,18 +5,33 @@ import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
 import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
+import type { selectedStock, Stock } from '@/types/bandits';
 
-// variables
+// ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
-const showStockManager = ref(false);
+const stockList = stocks as Stock[];
+initializePortfolio();
 
-// algorithm selection
+function initializePortfolio() {
+  if (banditStore.selectedStocks.length === 0) {
+    banditStore.selectedStocks = [
+      { stock: stockList[0], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+      { stock: stockList[1], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+      { stock: stockList[2], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+    ];
+  }
+}
+
+// ----------------------- algorithm selection -----------------------
 const bandits = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
   { name: 'Bernoulli-Bandit', key: 'bernoulli' },
 ];
 const activeBandit: Ref<string> = ref(bandits[0].key);
 
+
+// ----------------------- stock management modal -----------------------
+const showStockManager = ref(false);
 // open stock manager modal
 function onEditStock() {
   showStockManager.value = true;
@@ -28,15 +43,15 @@ const selectedStockIndexes = ref<number[]>([]);
 // Sync modal selection with store when modal opens
 watch(showStockManager, (open) => {
   if (open) {
-    selectedStockIndexes.value = [...banditStore.selectedStocks.map(stock => stock.stock)];
+    selectedStockIndexes.value = [...banditStore.selectedStocks.map(stock => stock.stock.id)];
   }
 });
 
 // Toggle selection in modal
-function toggleStock(index: number) {
-  const idx = selectedStockIndexes.value.indexOf(index);
+function toggleStock(stockId: number) {
+  const idx = selectedStockIndexes.value.indexOf(stockId);
   if (idx === -1) {
-    selectedStockIndexes.value.push(index);
+    selectedStockIndexes.value.push(stockId);
   } else {
     selectedStockIndexes.value.splice(idx, 1);
   }
@@ -44,27 +59,40 @@ function toggleStock(index: number) {
 
 // Save selection to store
 function saveStocks() {
-  banditStore.selectedStocks = selectedStockIndexes.value.map(stock => ({
-    stock,
-    bernoulli_param: generateBernoulliParam(),
-    gaussian_param: generateGaussianParam(),
-  }));
+  banditStore.selectedStocks = [];
+
+  selectedStockIndexes.value.forEach(stockId => {
+    const stock: Stock | undefined = stockList.find(s => s.id === stockId);
+
+    if (!stock) {
+      alert('Fehler beim Speichern des Portfolios. Bitte versuchen Sie es erneut.');
+      // TODO: fehlerbehandlung
+      return; // Stop processing if stock is not found
+    }
+
+    const selectedStock: selectedStock = {
+      stock,
+      bernoulli_param: generateBernoulliParam(),
+      gaussian_param: generateGaussianParam(),
+    };
+
+    banditStore.selectedStocks.push(selectedStock);
+  });
+
   showStockManager.value = false;
 }
 
-function onInvest(stockIndex: number) {
-  const stock = banditStore.selectedStocksData[stockIndex];
-  if (stock) {
-    console.log('Invest clicked ', stock.name, stock.bernoulli_param, stock.gaussian_param, stockIndex);
-    if (!banditStore.banditInProgress) {
-      banditStore.banditInProgress = true;
-    }
-    if (activeBandit.value === 'gaussian') {
-     // HIER Logik für Gaussian Bandit
-    } else if (activeBandit.value === 'bernoulli') {
-     // HIER Logik für Bernoulli Bandit
-    }
+
+// ----------------------- invest in stock (bandit run) -----------------------
+
+function onInvest(stock: selectedStock) {
+  // Check if bandit is already in progress and set flag if not
+  if (!banditStore.banditInProgress) {
+    banditStore.banditInProgress = true;
   }
+  
+  // Trigger bandit algorithm
+  banditStore.pullArm(activeBandit.value, stock)
 }
 
 </script>
@@ -161,13 +189,13 @@ function onInvest(stockIndex: number) {
             <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
             <button class="white-button button-red" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
-          <div class="portfolio-item" v-for="(stock, index) in banditStore.selectedStocksData" :key="stock.name">
-            <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+          <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
+            <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
             <div class="portfolio-item-info">
-              <div class="portfolio-item-title">{{ stock.name }}</div>
-              <div class="portfolio-item-price">{{ stock.price }} €</div>
+              <div class="portfolio-item-title">{{ selectedStock.stock.name }}</div>
+              <div class="portfolio-item-price">{{ selectedStock.stock.price }} €</div>
             </div>
-            <button class="portfolio-item-button" @click="onInvest(index)">
+            <button class="portfolio-item-button" @click="onInvest(selectedStock)">
               Investieren
             </button>
           </div>
@@ -184,7 +212,7 @@ function onInvest(stockIndex: number) {
         Hier können Sie Ihr Aktienportfolio verwalten. Wählen Sie aus der Liste der verfügbaren Aktien diejenigen aus, die Sie in Ihr Portfolio aufnehmen möchten.
       </div>
       <div class="modal-stocklist">
-        <div class="portfolio-item" v-for="(stock, idx) in stocks" :key="stock.name">
+        <div class="portfolio-item" v-for="stock in stockList" :key="stock.name">
           <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
           <div class="portfolio-item-info">
             <div class="portfolio-item-title">
@@ -197,8 +225,8 @@ function onInvest(stockIndex: number) {
           <input
             type="checkbox"
             class="portfolio-item-checkbox"
-            :checked="selectedStockIndexes.includes(idx)"
-            @change="toggleStock(idx)"
+            :checked="selectedStockIndexes.includes(stock.id)"
+            @change="toggleStock(stock.id)"
           />
         </div>
       </div>
