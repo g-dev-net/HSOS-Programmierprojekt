@@ -1,4 +1,4 @@
-import { ref, computed, compileToFunction } from 'vue'
+import { ref, computed} from 'vue'
 import { defineStore } from 'pinia'
 import type { selectedStock } from '@/types/bandits'
 import type { Investment } from '@/types/investment'
