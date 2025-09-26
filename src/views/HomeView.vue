@@ -176,13 +176,17 @@ function onInvest(stock: selectedStock) {
         </div>
         <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <MainChart :data="[0, 200, 400, 300, 0. -200, -100, 100, 0]" />
+          <!-- <MainChart :data="[0, 200, 400, 300, 0. -200, -100, 100, 0]" /> -->
+          Diagramm 
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-
+          Tabelle
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
+         <div>
+          Theorie
+         </div>
       </div>
       <!-- Sidebar -->
       <div class="sidebar-home-view">
