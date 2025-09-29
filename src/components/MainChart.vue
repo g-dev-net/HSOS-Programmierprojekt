@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import * as d3 from 'd3'
+import { color } from 'chart.js/helpers';
+
 
 const props = defineProps({
   data: {
@@ -17,53 +17,51 @@ const props = defineProps({
   }
 })
 
-const padding = 10
-
-const rangeX = computed(() => {
-  const w = props.width - padding
-  return [0, w]
-})
-
-const rangeY = computed(() => {
-  const h = props.height - padding
-  return [0, h]
-})
-
-const pathGen = computed(() => {
-  const x = d3.scaleLinear().range(rangeX.value)
-  const y = d3.scaleLinear().range(rangeY.value)
-
-  //@ts-ignore
-  x.domain(d3.extent(props.data, (_d, i) => i))
-  //@ts-ignore
-  y.domain([0, d3.max(props.data, d => d)])
-
-  return d3.line()
-    .x((_d, i) => x(i))
-    //@ts-ignore
-    .y(d => y(d))
-})
-
-//@ts-ignore
-const line = computed(() => pathGen.value(props.data))
-
-const viewBox = computed(() => `0 0 ${props.width} ${props.height}`)
+const options = {
+        animationEnabled: true,
+        backgroundColor: "transparent",
+        axisX:{
+          title: "Investments",
+          titleFontColor: "white",
+          labelTextAlign: "center",
+          lineColor: "white",
+          tickColor: "white",
+        },
+        axisY: {
+          title: "Gewinn",
+          titleFontColor: "white",
+          lineColor: "white",
+          tickColor: "white",
+          gridColor: "gray",
+          gridDashType: "dash",
+        },
+        data: [{
+          type: "line",
+          lineColor: "white",
+          lineThickness: 3,
+          markerColor: "white",
+          dataPoints: [
+            { label: "2016", y: 0 },
+            { label: "2017", y: 1 },
+            { label: "2018", y: 1 },
+            { label: "2019", y: 2 },
+            { label: "2020", y: 3 },
+            { label: "2021", y: 3 },
+            { label: "2022 (Jan-Oct)", y: 4 },
+            { label: "2022 (Jan-Oct)", y: 4 }
+          ]
+        }]
+      }
+const styleOptions = {
+        width: "100%",
+        height: "360px"
+      }
 </script>
 
 <template>
-  <svg class="line-chart" :viewBox="viewBox">
-    <g transform="translate(0, 10)">
-      <path class="line-chart__line" :d="line" />
-    </g>
-  </svg>
+  <CanvasJSChart :options="options" :style="styleOptions"/>
 </template>
 
 <style scoped>
-.line-chart {
-    margin: 25px;
-    fill: none;
-    stroke: #76BF8A;
-    stroke-width: 3px;
-}
 
 </style>
