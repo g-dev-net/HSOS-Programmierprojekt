@@ -96,12 +96,7 @@ function onInvest(stock: selectedStock) {
   banditStore.pullArm(activeBandit.value, stock)
 }
 
-const tableHeaders = ['Investment', 'Aktie', 'Portfolio-Stand', 'Gaussian-Ergebniss', 'Gewinn/Verlust'];
-const tableRows = [
-  { Investment: '0', Aktie: '-', 'Portfolio-Stand': '10.000 €', 'Gaussian-Ergebniss': '-', 'Gewinn/Verlust': '-' },
-  { Investment: '1', Aktie: 'Amazon', 'Portfolio-Stand': '10.300 €', 'Gaussian-Ergebniss': '30%', 'Gewinn/Verlust': '300 €' },
-  { Investment: '2', Aktie: 'Test', 'Portfolio-Stand': '10.350 €', 'Gaussian-Ergebniss': '5%', 'Gewinn/Verlust': '50 €' }
-];
+const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Bandit-Ergebnis"}, {'winLos': "Gewinn/Verlust"}];
 
 </script>
 
@@ -184,11 +179,11 @@ const tableRows = [
         </div>
         <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <MainChart :data="[0, 200, 400, 300, 0, -200, -100, 100, 0]" />
+          <MainChart :data="banditStore.displayData" />
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-          <MainTable :headers="tableHeaders" :rows="tableRows"></MainTable>
+          <MainTable :headers="tableHeaders" :rows="banditStore.displayData"></MainTable>
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
          <div>

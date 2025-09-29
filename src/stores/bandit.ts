@@ -1,7 +1,7 @@
 import { ref, computed} from 'vue'
 import { defineStore } from 'pinia'
 import type { selectedStock } from '@/types/bandits'
-import type { Investment } from '@/types/investment'
+import type { DisplayDataPoint, Investment } from '@/types/investment'
 import { bernoulli } from '@/bandits/bernoulli'
 import { gaussian } from '@/bandits/gaussian'
 
@@ -21,6 +21,40 @@ export const useBanditStore = defineStore('bandit', () => {
 
   // list of investments
   const investments = ref<Investment[]>([])
+
+  const displayData = computed(() => {
+    var yCounter = 0;
+    var portfolioValue = startingCapital.value;
+    var dataPoints: DisplayDataPoint[] = [];
+    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-", winLos: "-" });
+
+    investments.value.forEach((investment, index) => {
+      var isWon = false;
+      var winValue = 0;
+      if (investment.bernoulliReturn !== null) {
+        isWon = investment.bernoulliReturn;
+      } else if (investment.gaussianReturn !== null) {
+        isWon = investment.gaussianReturn > 0;
+        winValue = investment.gaussianReturn * investmentStep.value;
+      }
+      if (isWon) {
+        yCounter += 1;
+        portfolioValue += winValue;
+      }
+
+      dataPoints.push({
+        x: index + 1,
+        y: yCounter,
+        label: `Investment ${index + 1}`,
+        stock: investment.stock.stock.name,
+        portfolioValue: (portfolioValue).toFixed(2),
+        banditResult: investment.bernoulliReturn !== null ? (investment.bernoulliReturn ? "Gewinn" : "Verlust") : (investment.gaussianReturn !== null ? (investment.gaussianReturn > 0 ? `Gewinn` : `Verlust`) : "-"),
+        winLos: winValue.toFixed(2)
+      });
+    })
+
+    return dataPoints;
+  });
 
   // pull arm function
   const pullArm = (algorithm: string, stock: selectedStock) => {
@@ -44,5 +78,5 @@ export const useBanditStore = defineStore('bandit', () => {
     }
   }
 
-  return { selectedStocks, startingCapital, remainingCapital, possibleInvestments, investmentStep, investments, banditInProgress, pullArm }
+  return { selectedStocks, startingCapital, remainingCapital, possibleInvestments, investmentStep, investments, banditInProgress, pullArm, displayData }
 })
