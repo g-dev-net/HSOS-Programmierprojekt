@@ -55,3 +55,9 @@ body {
   background-color: red !important;
   color: white !important;
 }
+
+
+/* Override CanvasJS credit text color */
+.canvasjs-chart-credit {
+  color: black !important;
+}

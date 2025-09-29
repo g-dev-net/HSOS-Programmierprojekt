@@ -15,6 +15,7 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@canvasjs/vue-charts": "^1.0.4",
     "chart.js": "^4.5.0",
     "d3": "^7.9.0",
     "pinia": "^3.0.3",
