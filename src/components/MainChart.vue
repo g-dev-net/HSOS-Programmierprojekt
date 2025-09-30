@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DisplayDataPoint } from '@/types/investment';
+import { active } from 'd3';
 
 
 const props = defineProps({
@@ -15,12 +16,20 @@ const props = defineProps({
   height: {
     type: Number,
     default: 500
+  },
+  activeBandit: {
+    type: String,
+    required: true
   }
 })
 
 const chartData = computed(() => 
   props.data.map((point) => ({ x: point.x, y: point.y }))
 )
+
+const yAxisTitle = computed(() => {
+  return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
+})
 
 const options = computed(() => ({
   animationEnabled: true,
@@ -31,14 +40,16 @@ const options = computed(() => ({
     labelTextAlign: "center",
     lineColor: "white",
     tickColor: "white",
+    labelFontColor: "white",
   },
   axisY: {
-    title: "Gewinn",
+    title: yAxisTitle.value,
     titleFontColor: "white",
     lineColor: "white",
     tickColor: "white",
     gridColor: "gray",
     gridDashType: "dash",
+    labelFontColor: "white",
   },
   data: [{
     type: "line",

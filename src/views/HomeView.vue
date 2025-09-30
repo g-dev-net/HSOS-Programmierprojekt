@@ -23,13 +23,13 @@ function initializePortfolio() {
   }
 }
 
-// ----------------------- algorithm selection -----------------------
-const bandits = [
-  { name: 'Gaussian-Bandit', key: 'gaussian' },
-  { name: 'Bernoulli-Bandit', key: 'bernoulli' },
-];
-const activeBandit: Ref<string> = ref(bandits[0].key);
-
+function onBanditChange(banditKey: string) {
+  if (banditStore.banditInProgress) {
+    alert('Der Bandit läuft bereits. Bitte setzen Sie den Bandit zurück, um den Algorithmus zu wechseln.');
+    return;
+  }
+  banditStore.activeBandit = banditKey;
+}
 
 // ----------------------- stock management modal -----------------------
 const showStockManager = ref(false);
@@ -93,10 +93,10 @@ function onInvest(stock: selectedStock) {
   }
   
   // Trigger bandit algorithm
-  banditStore.pullArm(activeBandit.value, stock)
+  banditStore.pullArm(banditStore.activeBandit, stock)
 }
 
-const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Bandit-Ergebnis"}, {'winLos': "Gewinn/Verlust"}];
+const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Bandit-Ergebnis"}];
 
 </script>
 
@@ -105,8 +105,8 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
     <!-- Headbar -->
     <div class="main-home-headbar">
       <div class="text-nav-button-group">
-        <div v-for="bandit in bandits" class="text-nav-button" :key="bandit.key"
-          :class="{ active: activeBandit === bandit.key }" @click="activeBandit = bandit.key">
+        <div v-for="bandit in banditStore.bandits" class="text-nav-button" :key="bandit.key"
+          :class="{ active: banditStore.activeBandit === bandit.key }" @click="onBanditChange(bandit.key)">
           {{ bandit.name }}
         </div>
       </div>
@@ -127,13 +127,30 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
               Portfolio
             </div>
             <div class="portfolio-box-title">
-              10.000€
+              {{ Math.round(banditStore.currentCapital * 100) / 100 }} €
             </div>
-            <div class="portfolio-box-subtitle">
-              <span class="material-symbols-outlined">
-                arrow_upward
+            <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'bernoulli'">
+              Gewonnen: {{ banditStore.bernoutliPortfolioSubtitle }} ({{ ((banditStore.bernoutliPortfolioSubtitle / banditStore.investments.length) * 100) | 0}} %)
+            </div>
+            <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'gaussian'">
+              <span class="material-symbols-outlined" style="color: green;" v-if="banditStore.gaussianPortfolioSubtitle > 0">
+                north_east
               </span>
-              200€(2%)
+              <span class="material-symbols-outlined" v-if="banditStore.gaussianPortfolioSubtitle == 0">
+                east
+              </span>
+              <span class="material-symbols-outlined" style="color: red;" v-if="banditStore.gaussianPortfolioSubtitle < 0">
+                south_east
+              </span>
+              &nbsp;
+              {{ banditStore.gaussianPortfolioSubtitle }} €
+              (
+                {{
+                  banditStore.investments.length > 0
+                    ? (((parseFloat(banditStore.currentCapital) - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
+                    : '0 %'
+                }}
+              )
             </div>
           </div>
           <div class="capital-box">
@@ -150,7 +167,7 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
                 Restkapital:
               </div>
               <div>
-                {{ banditStore.remainingCapital }} €
+                {{ Math.round(banditStore.remainingCapital * 100) / 100 }} €
               </div>
             </div>
             <div class="capital-box-row">
@@ -172,14 +189,14 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
                 Per Investment:
               </div>
               <div>
-                {{ banditStore.investmentStep }} €
+                {{ Math.round(banditStore.investmentStep * 100) / 100 }}
               </div>
             </div>
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <MainChart :data="banditStore.displayData" />
+          <MainChart :data="banditStore.displayData" :activeBandit="banditStore.activeBandit"/>
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
@@ -196,7 +213,7 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
             <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+            <button class="white-button button-red" @click="banditStore.resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
           <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
             <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
@@ -204,7 +221,7 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
               <div class="portfolio-item-title">{{ selectedStock.stock.name }}</div>
               <div class="portfolio-item-price">{{ selectedStock.stock.price }} €</div>
             </div>
-            <button class="portfolio-item-button" @click="onInvest(selectedStock)">
+            <button class="portfolio-item-button" @click="onInvest(selectedStock)" :disabled="!banditStore.isInvestmentPossible">
               Investieren
             </button>
           </div>
@@ -420,6 +437,11 @@ const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue'
 
 .portfolio-item-button:hover {
   opacity: 0.7;
+}
+
+.portfolio-item-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .portfolio-item-checkbox {

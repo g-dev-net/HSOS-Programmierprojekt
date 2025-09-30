@@ -1,4 +1,4 @@
-import { ref, computed} from 'vue'
+import { ref, computed, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { selectedStock } from '@/types/bandits'
 import type { DisplayDataPoint, Investment } from '@/types/investment'
@@ -8,10 +8,27 @@ import { gaussian } from '@/bandits/gaussian'
 export const useBanditStore = defineStore('bandit', () => {
 
   // --------------------- general values ---------------------
+  const bandits = [
+    { name: 'Gaussian-Bandit', key: 'gaussian' },
+    { name: 'Bernoulli-Bandit', key: 'bernoulli' },
+  ];
+  const activeBandit: Ref<string> = ref(bandits[0].key);
+
   const startingCapital = ref(10000)
-  const remainingCapital = ref(startingCapital.value) // TODO - anzahl investments
+  const currentCapital = computed(() => { return displayData.value[investments.value.length].portfolioValue })
+  const remainingCapital = computed(() => { return startingCapital.value - (investmentStep.value * investments.value.length) })
   const possibleInvestments = ref(10)
-  const investmentStep = computed(() => Math.round(startingCapital.value / possibleInvestments.value))
+  const investmentStep = computed(() => (startingCapital.value / possibleInvestments.value))
+  const bernoutliPortfolioSubtitle = computed(() => {
+    return investments.value.filter(inv => inv.bernoulliReturn === true).length;
+  })
+
+  const gaussianPortfolioSubtitle = computed(() => {
+    return investments.value
+      .filter(inv => inv.gaussianReturn !== null)
+      .reduce((sum, inv) => sum + (inv.gaussianReturn! * investmentStep.value), 0)
+      .toFixed(2);
+  })
 
   // Liste mit den ausgewählten Aktien und deren Parametern
   const selectedStocks = ref<selectedStock[]>([])
@@ -22,11 +39,21 @@ export const useBanditStore = defineStore('bandit', () => {
   // list of investments
   const investments = ref<Investment[]>([])
 
+  const isInvestmentPossible = computed(() => {
+    return investments.value.length < possibleInvestments.value;
+  });
+
+  const resetBandit = () => {
+    investments.value = [];
+    banditInProgress.value = false;
+  }
+
   const displayData = computed(() => {
     var yCounter = 0;
+    var winSum = 0;
     var portfolioValue = startingCapital.value;
     var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-", winLos: "-" });
+    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
 
     investments.value.forEach((investment, index) => {
       var isWon = false;
@@ -36,20 +63,26 @@ export const useBanditStore = defineStore('bandit', () => {
       } else if (investment.gaussianReturn !== null) {
         isWon = investment.gaussianReturn > 0;
         winValue = investment.gaussianReturn * investmentStep.value;
+        winSum += winValue;
+        portfolioValue += winValue;
       }
       if (isWon) {
         yCounter += 1;
-        portfolioValue += winValue;
+      }
+      var yValue = 0;
+      if (activeBandit.value === 'bernoulli') {
+        yValue = yCounter;
+      } else if (activeBandit.value === 'gaussian') {
+        yValue = winSum;
       }
 
       dataPoints.push({
         x: index + 1,
-        y: yCounter,
+        y: yValue,
         label: `Investment ${index + 1}`,
         stock: investment.stock.stock.name,
         portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: investment.bernoulliReturn !== null ? (investment.bernoulliReturn ? "Gewinn" : "Verlust") : (investment.gaussianReturn !== null ? (investment.gaussianReturn > 0 ? `Gewinn` : `Verlust`) : "-"),
-        winLos: winValue.toFixed(2)
+        banditResult: investment.bernoulliReturn !== null ? (investment.bernoulliReturn ? "Gewinn" : "Verlust") : (investment.gaussianReturn !== null ? winValue.toFixed(2) : "-")
       });
     })
 
@@ -58,8 +91,12 @@ export const useBanditStore = defineStore('bandit', () => {
 
   // pull arm function
   const pullArm = (algorithm: string, stock: selectedStock) => {
+    if (!isInvestmentPossible.value) {
+      return;
+    }
+
     if (algorithm === 'bernoulli') {
-     
+
       const result = bernoulli(stock.bernoulli_param);
       investments.value.push({
         stock: stock,
@@ -78,5 +115,5 @@ export const useBanditStore = defineStore('bandit', () => {
     }
   }
 
-  return { selectedStocks, startingCapital, remainingCapital, possibleInvestments, investmentStep, investments, banditInProgress, pullArm, displayData }
+  return { bandits, activeBandit, selectedStocks, startingCapital, currentCapital, remainingCapital, possibleInvestments, investmentStep, investments, banditInProgress, pullArm, displayData, isInvestmentPossible, resetBandit, bernoutliPortfolioSubtitle, gaussianPortfolioSubtitle}
 })
