@@ -1,0 +1,92 @@
+[
+  {
+    "id": 0,
+    "name": "Apple",
+    "price": 238.75,
+    "logo_url": "https://logo.clearbit.com/apple.com"
+  },
+  {
+    "id": 1,
+    "name": "Microsoft",
+    "price": 507.44,
+    "logo_url": "https://logo.clearbit.com/microsoft.com"
+  },
+  {
+    "id": 2,
+    "name": "Alphabet",
+    "price": 246.64,
+    "logo_url": "https://logo.clearbit.com/google.com"
+  },
+  {
+    "id": 3,
+    "name": "Amazon",
+    "price": 230.65,
+    "logo_url": "https://logo.clearbit.com/amazon.com"
+  },
+  {
+    "id": 4,
+    "name": "Meta Platforms",
+    "price": 767.8,
+    "logo_url": "https://logo.clearbit.com/meta.com"
+  },
+  {
+    "id": 5,
+    "name": "Tesla",
+    "price": 414.94,
+    "logo_url": "https://logo.clearbit.com/tesla.com"
+  },
+  {
+    "id": 6,
+    "name": "NVIDIA",
+    "price": 169.5,
+    "logo_url": "https://logo.clearbit.com/nvidia.com"
+  },
+  {
+    "id": 7,
+    "name": "JPMorgan Chase",
+    "price": 309.93,
+    "logo_url": "https://logo.clearbit.com/jpmorganchase.com"
+  },
+  {
+    "id": 8,
+    "name": "Visa",
+    "price": 344.19,
+    "logo_url": "https://logo.clearbit.com/visa.com"
+  },
+  {
+    "id": 9,
+    "name": "Johnson & Johnson",
+    "price": 177.22,
+    "logo_url": "https://logo.clearbit.com/jnj.com"
+  },
+  {
+    "id": 10,
+    "name": "Walmart",
+    "price": 104.855,
+    "logo_url": "https://logo.clearbit.com/walmart.com"
+  },
+  {
+    "id": 11,
+    "name": "Procter & Gamble",
+    "price": 161.24,
+    "logo_url": "https://logo.clearbit.com/pg.com"
+  },
+  {
+    "id": 12,
+    "name": "The Coca-Cola Company",
+    "price": 67.01,
+    "logo_url": "https://logo.clearbit.com/coca-cola.com"
+  },
+  {
+    "id": 13,
+    "name": "PepsiCo",
+    "price": 141.49,
+    "logo_url": "https://logo.clearbit.com/pepsico.com"
+  },
+  {
+    "id": 14,
+    "name": "Netflix",
+    "price": 1220.99,
+    "logo_url": "https://logo.clearbit.com/netflix.com"
+  }
+]

@@ -35,3 +35,29 @@ body {
 .text-nav-button.active {
  color: var(--text-primary);
 }
+
+.white-button {
+  background-color: white;
+  border: none;
+  color: black;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.white-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button-red {
+  background-color: red !important;
+  color: white !important;
+}
+
+
+/* Override CanvasJS credit text color */
+.canvasjs-chart-credit {
+  color: black !important;
+}

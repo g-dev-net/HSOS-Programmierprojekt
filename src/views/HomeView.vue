@@ -1,21 +1,102 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
-import { type Ref, ref } from 'vue';
+import { type Ref, ref, watch } from 'vue';
+import { useBanditStore } from '@/stores/bandit';
+import Modal from '@/components/Modal.vue';
+import stocks from '@/data/aktien.json'
+import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
+import type { selectedStock, Stock } from '@/types/bandits';
+import MainTable from '@/components/MainTable.vue';
 
-const algorithms = [
+// ----------------------- general setup -----------------------
+const banditStore = useBanditStore();
+const stockList = stocks as Stock[];
+initializePortfolio();
+
+function initializePortfolio() {
+  if (banditStore.selectedStocks.length === 0) {
+    banditStore.selectedStocks = [
+      { stock: stockList[0], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+      { stock: stockList[1], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+      { stock: stockList[2], bernoulli_param: generateBernoulliParam(), gaussian_param: generateGaussianParam() },
+    ];
+  }
+}
+
+// ----------------------- algorithm selection -----------------------
+const bandits = [
   { name: 'Gaussian-Bandit', key: 'gaussian' },
   { name: 'Bernoulli-Bandit', key: 'bernoulli' },
 ];
+const activeBandit: Ref<string> = ref(bandits[0].key);
 
-const activeAlgorithm: Ref<string> = ref(algorithms[0].key);
 
-function onInvest() {
-  console.log('Invest clicked');
+// ----------------------- stock management modal -----------------------
+const showStockManager = ref(false);
+// open stock manager modal
+function onEditStock() {
+  showStockManager.value = true;
 }
 
-function onAddStock() {
-  console.log('Add stock clicked');
+// Local state for stock selection in modal
+const selectedStockIndexes = ref<number[]>([]);
+
+// Sync modal selection with store when modal opens
+watch(showStockManager, (open) => {
+  if (open) {
+    selectedStockIndexes.value = [...banditStore.selectedStocks.map(stock => stock.stock.id)];
+  }
+});
+
+// Toggle selection in modal
+function toggleStock(stockId: number) {
+  const idx = selectedStockIndexes.value.indexOf(stockId);
+  if (idx === -1) {
+    selectedStockIndexes.value.push(stockId);
+  } else {
+    selectedStockIndexes.value.splice(idx, 1);
+  }
 }
+
+// Save selection to store
+function saveStocks() {
+  banditStore.selectedStocks = [];
+
+  selectedStockIndexes.value.forEach(stockId => {
+    const stock: Stock | undefined = stockList.find(s => s.id === stockId);
+
+    if (!stock) {
+      alert('Fehler beim Speichern des Portfolios. Bitte versuchen Sie es erneut.');
+      // TODO: fehlerbehandlung
+      return; // Stop processing if stock is not found
+    }
+
+    const selectedStock: selectedStock = {
+      stock,
+      bernoulli_param: generateBernoulliParam(),
+      gaussian_param: generateGaussianParam(),
+    };
+
+    banditStore.selectedStocks.push(selectedStock);
+  });
+
+  showStockManager.value = false;
+}
+
+
+// ----------------------- invest in stock (bandit run) -----------------------
+
+function onInvest(stock: selectedStock) {
+  // Check if bandit is already in progress and set flag if not
+  if (!banditStore.banditInProgress) {
+    banditStore.banditInProgress = true;
+  }
+  
+  // Trigger bandit algorithm
+  banditStore.pullArm(activeBandit.value, stock)
+}
+
+const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Bandit-Ergebnis"}, {'winLos': "Gewinn/Verlust"}];
 
 </script>
 
@@ -24,9 +105,9 @@ function onAddStock() {
     <!-- Headbar -->
     <div class="main-home-headbar">
       <div class="text-nav-button-group">
-        <div v-for="algo in algorithms" class="text-nav-button" :key="algo.key"
-          :class="{ active: activeAlgorithm === algo.key }" @click="activeAlgorithm = algo.key">
-          {{ algo.name }}
+        <div v-for="bandit in bandits" class="text-nav-button" :key="bandit.key"
+          :class="{ active: activeBandit === bandit.key }" @click="activeBandit = bandit.key">
+          {{ bandit.name }}
         </div>
       </div>
       <div class="main-home-headbar-theory-button">
@@ -56,46 +137,74 @@ function onAddStock() {
             </div>
           </div>
           <div class="capital-box">
-            <div class="starting-capital">
-              Startkapital: 10.000€
+            <div class="capital-box-row">
+              <div>
+                Startkapital:
+              </div>
+              <div>
+                {{ banditStore.startingCapital }} €
+              </div>
             </div>
-            <div class="starting-capital">
-              Restkapital: 10.000€
+            <div class="capital-box-row">
+              <div>
+                Restkapital:
+              </div>
+              <div>
+                {{ banditStore.remainingCapital }} €
+              </div>
             </div>
-            <div class="starting-capital">
-              Investmens: 10
+            <div class="capital-box-row">
+              <div>Investments:</div>
+              <div class="capital-invest-counter">
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments = banditStore.possibleInvestments - 2" :disabled="banditStore.possibleInvestments <= 2" v-if="banditStore.banditInProgress === false">
+                  <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
+                </button>
+                <div>
+                  {{ banditStore.possibleInvestments }}
+                </div>
+                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments  = banditStore.possibleInvestments + 2" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
+                  <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
+                </button>
+              </div>
+            </div>
+            <div class="capital-box-row">
+              <div>
+                Per Investment:
+              </div>
+              <div>
+                {{ banditStore.investmentStep }} €
+              </div>
             </div>
           </div>
         </div>
+        <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <MainChart :data="[0, 200, 400, 300, 0. -200, -100, 100, 0]" />
+          <MainChart :data="banditStore.displayData" />
         </div>
+          <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-
+          <MainTable :headers="tableHeaders" :rows="banditStore.displayData"></MainTable>
         </div>
+        <!-- Hier aufklapp ding für die Theorie  -->
+         <div>
+          Theorie
+         </div>
       </div>
       <!-- Sidebar -->
       <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
           <h3>Aktien im Portfolio</h3>
-          <button>Neue Aktie hinzufügen</button>
-          <div class="sidebar-portfolio-item">
-            <!--<img src="../assets/AppleLogo.png" alt="Apple Logo" class="sidebar-portfolio-item-logo" />-->
-            <svg height="44" viewBox="0 0 14 44" fill="white" width="14" xmlns="http://www.w3.org/2000/svg"
-              class="sidebar-portfolio-item-logo">
-              <path
-                d="m13.0729 17.6825a3.61 3.61 0 0 0 -1.7248 3.0365 3.5132 3.5132 0 0 0 2.1379 3.2223 8.394 8.394 0 0 1 -1.0948 2.2618c-.6816.9812-1.3943 1.9623-2.4787 1.9623s-1.3633-.63-2.613-.63c-1.2187 0-1.6525.6507-2.644.6507s-1.6834-.9089-2.4787-2.0243a9.7842 9.7842 0 0 1 -1.6628-5.2776c0-3.0984 2.014-4.7405 3.9969-4.7405 1.0535 0 1.9314.6919 2.5924.6919.63 0 1.6112-.7333 2.8092-.7333a3.7579 3.7579 0 0 1 3.1604 1.5802zm-3.7284-2.8918a3.5615 3.5615 0 0 0 .8469-2.22 1.5353 1.5353 0 0 0 -.031-.32 3.5686 3.5686 0 0 0 -2.3445 1.2084 3.4629 3.4629 0 0 0 -.8779 2.1585 1.419 1.419 0 0 0 .031.2892 1.19 1.19 0 0 0 .2169.0207 3.0935 3.0935 0 0 0 2.1586-1.1368z">
-              </path>
-            </svg>
-            <div class="sidebar-portfolio-item-info">
-              <div class="sidebar-portfolio-item-title">
-                Apple (AAPL)
-              </div>
-              <div class="sidebar-portfolio-item-price">
-                <div>40€</div>
-              </div>
+          <div class="sidebar-portfolio-controls">
+            <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
+            <button class="white-button button-red" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+          </div>
+          <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
+            <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+            <div class="portfolio-item-info">
+              <div class="portfolio-item-title">{{ selectedStock.stock.name }}</div>
+              <div class="portfolio-item-price">{{ selectedStock.stock.price }} €</div>
             </div>
-            <button class="sidebar-portfolio-item-button" @click="onInvest">
+            <button class="portfolio-item-button" @click="onInvest(selectedStock)">
               Investieren
             </button>
           </div>
@@ -103,6 +212,44 @@ function onAddStock() {
       </div>
     </div>
   </div>
+  <Modal v-model="showStockManager" :close-on-backdrop="true" :close-on-esc="true">
+    <template #header>
+      <h2 class="modal_stockManager_title">Portfolio bearbeiten</h2>
+    </template>
+    <div>
+      <div>
+        Hier können Sie Ihr Aktienportfolio verwalten. Wählen Sie aus der Liste der verfügbaren Aktien diejenigen aus, die Sie in Ihr Portfolio aufnehmen möchten.
+      </div>
+      <div class="modal-stocklist">
+        <div class="portfolio-item" v-for="stock in stockList" :key="stock.name">
+          <img :src="stock.logo_url" alt="Logo" class="portfolio-item-logo" />
+          <div class="portfolio-item-info">
+            <div class="portfolio-item-title">
+              {{ stock.name }}
+            </div>
+            <div class="portfolio-item-price">
+              <div>{{ stock.price }} €</div>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="portfolio-item-checkbox"
+            :checked="selectedStockIndexes.includes(stock.id)"
+            @change="toggleStock(stock.id)"
+          />
+        </div>
+      </div>
+      <div>
+        Nachdem Sie Ihre Auswahl getroffen haben, klicken Sie auf "Speichern", um die Änderungen zu übernehmen, oder auf "Abbrechen", um ohne Änderungen zurückzukehren.
+      </div>
+    </div>
+    <template #footer>
+      <div class="modal_stockManager_footer">
+        <button class="white-button button-red" type="button" @click="showStockManager = false">Abbrechen</button>
+        <button class="white-button" type="button" @click="saveStocks">Speichern</button>
+      </div>
+    </template>
+  </Modal>
 </template>
 <style scoped>
 /* Base layout */
@@ -156,11 +303,34 @@ function onAddStock() {
 }
 
 /* Main Content */
-.starting-capital {
+.capital-box-row {
   color: var(--text-primary);
   font-weight: bold;
   font-size: x-large;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
 }
+
+.capital-invest-counter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.capital-invest-counter-button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
 
 .diagramm-headbar {
   display: flex;
@@ -196,6 +366,7 @@ function onAddStock() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -203,25 +374,29 @@ function onAddStock() {
   width: 100%;
 }
 
-.sidebar-portfolio-item {
+.portfolio-item {
   display: flex;
   flex-direction: row;
   align-items: center;
   background-color: var(--text-secondary);
   padding: 0.5rem;
   border-radius: 10px;
+  margin-top: 0.75rem;
 }
 
-.sidebar-portfolio-item-logo {
+.portfolio-item-logo {
   margin-left: 1rem;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
-.sidebar-portfolio-item-title {
+.portfolio-item-title {
   font-weight: bold;
   font-size: large;
 }
 
-.sidebar-portfolio-item-info {
+.portfolio-item-info {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -230,11 +405,47 @@ function onAddStock() {
   margin-left: 1rem;
 }
 
-.sidebar-portfolio-item-price {
+.portfolio-item-price {
   display: flex;
 }
 
-.sidebar-portfolio-item-button {
+.portfolio-item-button {
   margin-right: 1rem;
+  background-color: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-weight: bold;
+  cursor: pointer;
 }
+
+.portfolio-item-button:hover {
+  opacity: 0.7;
+}
+
+.portfolio-item-checkbox {
+  margin-right: 1rem;
+  cursor: pointer;
+}
+
+.sidebar-portfolio-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+/* Stock Manager Modal */
+.modal_stockManager_footer {
+  display: flex;
+  gap: .5rem;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.modal-stocklist {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
 </style>
