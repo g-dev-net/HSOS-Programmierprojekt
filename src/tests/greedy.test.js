@@ -1066,6 +1066,50 @@ describe('Greedy Algorithm Store-Based Tests', () => {
             mathRandomSpy.mockRestore();
         });
         
+        // Test für die neue reward-Variable Struktur
+        it('should use reward variable before storing in investment object', () => {
+            // Arrange
+            banditStore.possibleInvestments = 1;
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            expect(actualInvestments).toHaveLength(1);
+            
+            // The reward should be properly calculated and stored
+            const investment = actualInvestments[0];
+            expect(typeof investment.greedyReturn).toBe('number');
+            expect([0, 1]).toContain(investment.greedyReturn); // Bernoulli: 0 or 1
+        });
+        
+        // Test für die neue reward-Variable im Switch-Case
+        it('should calculate reward correctly in switch-case before storing', () => {
+            // Arrange
+            banditStore.possibleInvestments = 5;
+            
+            // Act - Test Bernoulli
+            algorithmStore.investmentsGreedy = [];
+            greedy_bernoulli();
+            const bernoulliResults = algorithmStore.investmentsGreedy.slice(3);
+            
+            // Act - Test Gaussian  
+            algorithmStore.investmentsGreedy = [];
+            greedy_gaussian();
+            const gaussianResults = algorithmStore.investmentsGreedy.slice(3);
+            
+            // Assert - Bernoulli rewards should be 0 or 1
+            bernoulliResults.forEach(investment => {
+                expect([0, 1]).toContain(investment.greedyReturn);
+            });
+            
+            // Assert - Gaussian rewards should be numbers (not necessarily 0 or 1)
+            gaussianResults.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+            });
+        });
+
         // Test für leere Arrays und Edge Cases
         it('should handle edge case when no prior investments exist', () => {
             // Arrange

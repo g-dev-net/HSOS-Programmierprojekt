@@ -71,10 +71,33 @@ Core implementation handling both bandit types with Bayesian inference.
    - **Bayesian Update**: Calculate posterior parameters based on historical data
    - **Statistical Sampling**: Sample from posterior distributions using jStat
    - **Arm Selection**: Choose arm with highest sampled value
-   - **Action & Update**: Pull selected arm and store result
+   - **Reward Calculation**: Execute bandit function and store result in `reward` variable
+   - **Investment Storage**: Push complete result to store
 3. Set `algorithmsInProgress` to false
 
 ## Statistical Implementation
+
+### Switch-Case Reward Calculation
+
+```typescript
+const chosen_arm = stock[best_arm_index];
+let reward = 0;
+switch (bandit) {
+    case 'bernoulli':
+        reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
+        break;
+    case 'gaussian':
+        reward = gaussian(chosen_arm.gaussian_param);
+        break;
+}
+
+algorithmStore.investmentsThompson.push({
+    stock: chosen_arm,
+    greedyReturn: null,
+    thompsonReturn: reward,
+    // ... all other algorithm returns set to null
+});
+```
 
 ### Bernoulli Case (Beta-Bernoulli)
 

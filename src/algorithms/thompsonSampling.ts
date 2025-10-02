@@ -56,30 +56,24 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
         }
 
         const chosen_arm = stock[best_arm_index];
+        let reward = 0;
         switch (bandit) {
             case 'bernoulli':
-                algorithmStore.investmentsThompson.push({
-                    stock: chosen_arm,
-                    greedyReturn: null,
-                    thompsonReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
+                reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
                 break;
             case 'gaussian':
-                algorithmStore.investmentsThompson.push({
-                    stock: chosen_arm,
-                    greedyReturn: null,
-                    thompsonReturn: gaussian(chosen_arm.gaussian_param),
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
+                reward = gaussian(chosen_arm.gaussian_param);
                 break;
         }
+        algorithmStore.investmentsThompson.push({
+            stock: chosen_arm,
+            greedyReturn: null,
+            thompsonReturn: reward,
+            ucbReturn: null,
+            gradientReturn: null,
+            optimisticInitialReturn: null,
+            userAlgorithmReturn: null
+        });
     }
     algorithmStore.algorithmsInProgress = false;
 }

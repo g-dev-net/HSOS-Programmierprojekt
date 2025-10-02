@@ -71,30 +71,25 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', epsilon: boolean) {
         }
 
         const chosen_arm = stock[best_arm_index];
+        let reward = 0;
         switch (bandit) {
             case 'bernoulli':
-                algorithmStore.investmentsGreedy.push({
-                    stock: chosen_arm,
-                    greedyReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0,  // Convert boolean to number
-                    thompsonReturn: null,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
+                reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
                 break;
             case 'gaussian':
-                algorithmStore.investmentsGreedy.push({
-                    stock: chosen_arm,
-                    greedyReturn: gaussian(chosen_arm.gaussian_param),
-                    thompsonReturn: null,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
+                reward = gaussian(chosen_arm.gaussian_param);
                 break;
         }
+
+        algorithmStore.investmentsGreedy.push({
+            stock: chosen_arm,
+            greedyReturn: reward,
+            thompsonReturn: null,
+            ucbReturn: null,
+            gradientReturn: null,
+            optimisticInitialReturn: null,
+            userAlgorithmReturn: null
+        });
     }
     algorithmStore.algorithmsInProgress = false;
 }

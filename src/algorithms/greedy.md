@@ -76,7 +76,8 @@ Core implementation handling both bandit types and exploration strategies.
 3. For each investment round:
    - **Exploration/Exploitation Decision**: Random selection if `epsilon && Math.random() < 0.1`
    - **Best Arm Selection**: Choose arm with highest `greedyReturn` using `findIndex()`
-   - **Action**: Pull selected arm and store result
+   - **Reward Calculation**: Execute bandit function and store result in `reward` variable
+   - **Investment Storage**: Push complete result to store
 4. Set `algorithmsInProgress: false`
 
 ## Key Implementation Details
@@ -115,24 +116,23 @@ if (epsilon && Math.random() < val_epsilon) {
 ### Switch-Case Implementation
 
 ```typescript
+const chosen_arm = stock[best_arm_index];
+let reward = 0;
 switch (bandit) {
     case 'bernoulli':
-        algorithmStore.investmentsGreedy.push({
-            stock: chosen_arm,
-            greedyReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0,
-            thompsonReturn: null,
-            // ... all other algorithm returns set to null
-        });
+        reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
         break;
     case 'gaussian':
-        algorithmStore.investmentsGreedy.push({
-            stock: chosen_arm,
-            greedyReturn: gaussian(chosen_arm.gaussian_param),
-            thompsonReturn: null,
-            // ... all other algorithm returns set to null
-        });
+        reward = gaussian(chosen_arm.gaussian_param);
         break;
 }
+
+algorithmStore.investmentsGreedy.push({
+    stock: chosen_arm,
+    greedyReturn: reward,
+    thompsonReturn: null,
+    // ... all other algorithm returns set to null
+});
 ```
 
 ## Data Management
