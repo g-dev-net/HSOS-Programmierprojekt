@@ -30,10 +30,23 @@ export function eGreedy_gaussian() {
     xGreedy(bandit, epsilon);
 }
 
-function xGreedy(bandit, epsilon) {
+function xGreedy(bandit: 'bernoulli' | 'gaussian', epsilon: boolean) {
     const banditStore = useBanditStore();
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
+
+    // Cold-Start init
+    stock.forEach(stock => {
+        algorithmStore.investmentsGreedy.push({
+            stock: stock,
+            greedyReturn: 0,
+            thompsonReturn: null,
+            ucbReturn: null,
+            gradientReturn: null,
+            optimisticInitialReturn: null,
+            userAlgorithmReturn: null
+        });
+    });
     
     // Try the arm with best success rate until anotherone is better (greedy)
     // OR try greedy but with probability e a random arm (e-greedy)
@@ -46,61 +59,42 @@ function xGreedy(bandit, epsilon) {
         else {
             // set comparison-value to first so it can be compared
             // ! Necessary bc the set value has changed in the loop
-            let best_arm_value = algorithmStore.investmentsGreedy[0]?.greedyReturn || 0;
-            best_arm_index = 0; // Start with first stock
+            let best_arm_value = algorithmStore.investmentsGreedy[0].greedyReturn!;
+            best_arm_index = 0;
             for (let i = 0; i < algorithmStore.investmentsGreedy.length; i++) {
-                const current_value = algorithmStore.investmentsGreedy[i].greedyReturn || 0;
+                const current_value = algorithmStore.investmentsGreedy[i].greedyReturn!;
                 if (current_value > best_arm_value) {
                     best_arm_value = current_value;
-                    // Find the index of this stock in the selectedStocks array
-                    const stockIndex = stock.findIndex(s => s === algorithmStore.investmentsGreedy[i].stock);
-                    if (stockIndex !== -1) {
-                        best_arm_index = stockIndex;
-                    }
+                    best_arm_index = stock.findIndex(s => s === algorithmStore.investmentsGreedy[i].stock);
                 }
             }
         }
 
-        // Ensure best_arm_index is valid
-        if (best_arm_index >= stock.length) {
-            best_arm_index = 0;
-        }
-
         const chosen_arm = stock[best_arm_index];
-        if (!chosen_arm) {
-            continue; // Skip this iteration if no valid arm
-        }
-
         switch (bandit) {
             case 'bernoulli':
                 algorithmStore.investmentsGreedy.push({
                     stock: chosen_arm,
-                    greedyReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0  // Convert boolean to number
+                    greedyReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0,  // Convert boolean to number
+                    thompsonReturn: null,
+                    ucbReturn: null,
+                    gradientReturn: null,
+                    optimisticInitialReturn: null,
+                    userAlgorithmReturn: null
                 });
                 break;
             case 'gaussian':
                 algorithmStore.investmentsGreedy.push({
                     stock: chosen_arm,
-                    greedyReturn: gaussian(chosen_arm.gaussian_param)
+                    greedyReturn: gaussian(chosen_arm.gaussian_param),
+                    thompsonReturn: null,
+                    ucbReturn: null,
+                    gradientReturn: null,
+                    optimisticInitialReturn: null,
+                    userAlgorithmReturn: null
                 });
                 break;
         }
     }
     algorithmStore.algorithmsInProgress = false;
 }
-
-// function init_array_arms(arms) {
-    // const greedy = [];
-
-    // arms.forEach(arm => {
-    //     greedy.push({
-    //         name: arm.name,
-    //         trial_result: [],
-    //         bandit_result: 0
-    //     });
-    // });
-
-    // return greedy;
-
-    // Can be used if for alternatives to cold start
-// }

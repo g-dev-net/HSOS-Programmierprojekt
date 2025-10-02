@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `greedy.js` module implements both standard Greedy and Epsilon-Greedy Algorithms for Multi-Armed Bandit (MAB) problems, supporting both Bernoulli and Gaussian bandit types. This implementation uses a Vue.js store-based architecture with Pinia for state management, eliminating the need for parameter passing and providing a reactive, centralized data management approach.
+The `greedy.ts` module implements both standard Greedy and Epsilon-Greedy Algorithms for Multi-Armed Bandit (MAB) problems, supporting both Bernoulli and Gaussian bandit types. This TypeScript implementation uses a Vue.js store-based architecture with Pinia for state management.
 
 ## Architecture
 
@@ -12,130 +12,132 @@ The implementation leverages two main Pinia stores:
 
 ## Testing
 
-The tests for this module are located in the directory `/src/tests/greedy.test.js`. They validate both the standard greedy and epsilon-greedy implementations by testing store interactions and algorithm behavior without mocks.
+The tests for this module are located in `/src/tests/greedy.test.js`. They validate both the standard greedy and epsilon-greedy implementations by testing store interactions and algorithm behavior without mocks.
 
-## The Greedy and Epsilon-Greedy Approaches
+## The Greedy Approaches
 
-### Standard Greedy Approach
+### Standard Greedy ("Cold Start")
 
-The "Cold Start" standard greedy approach refers to starting the decision-making process without any prior information about the arms' performance. The algorithm works as follows:
+The algorithm starts without prior information and always selects the arm with the highest current performance:
 
-1. All arms are initialized with a default performance metric (bandit_result = 0).
-2. In each trial, the algorithm selects the arm with the highest current bandit_result.
-3. The selected arm is played, and its result is recorded.
-4. The arm's bandit_result is updated based on its cumulative performance.
+1. **Cold-Start Initialization**: All arms initialized with `greedyReturn: 0`
+2. **Pure Exploitation**: Always selects the arm with highest `greedyReturn`
+3. **Performance Tracking**: Updates arm performance after each selection
 
-This approach is characterized by:
-- **No initial exploration phase**: Unlike epsilon-greedy or UCB algorithms, there's no explicit exploration parameter.
-- **Purely greedy selection**: Always selects the arm that currently appears best.
-- **Performance-based adaptation**: As trials progress, the algorithm naturally builds a performance profile for each arm.
+**Advantages**: Simple, immediate exploitation of best-performing arms
+**Disadvantages**: May get stuck with suboptimal arms, no exploration
 
-The main advantage is simplicity, while the disadvantage is that it may get stuck with suboptimal arms if they perform well in their initial trials.
+### Epsilon-Greedy
 
-### Epsilon-Greedy Approach
+Adds exploration to the standard greedy approach:
 
-The epsilon-greedy approach adds an exploration component to the standard greedy algorithm:
+1. **Exploration**: With probability ε (0.1), select random arm
+2. **Exploitation**: With probability 1-ε (0.9), select best arm
+3. **Balance**: Prevents getting stuck while maintaining good performance
 
-1. With probability ε (epsilon), the algorithm selects a random arm (exploration).
-2. With probability 1-ε, the algorithm selects the arm with the highest current bandit_result (exploitation).
-
-This approach is characterized by:
-- **Explicit exploration parameter**: The epsilon value (default 0.1) controls the exploration-exploitation balance.
-- **Occasional random selection**: Prevents getting stuck with suboptimal arms.
-- **Balance between exploration and exploitation**: More balanced than pure greedy approach.
-
-The main advantage is avoiding premature convergence to suboptimal solutions, while potentially sacrificing some short-term performance for better long-term results.
+**Advantages**: Avoids premature convergence, balanced exploration/exploitation
+**Disadvantages**: Fixed exploration rate may be inefficient
 
 ## Functions
 
-### `greedy_bernoulli()`
+### `greedy_bernoulli(): void` / `eGreedy_bernoulli(): void`
 
-Executes the standard greedy algorithm with Bernoulli bandits using store-managed data.
+Execute greedy algorithms with Bernoulli bandits.
 
 **Dependencies:**
-- Requires `banditStore.selectedStocks` to contain stock configurations with `bernoulli_param`
-- Requires `banditStore.possibleInvestments` to define the number of investment rounds
-- Updates `algorithmStore.investmentsGreedy` with results
+- Requires `banditStore.selectedStocks` with `bernoulli_param: number`
+- Updates `algorithmStore.investmentsGreedy: AlgoInvestment[]`
 
 **Behavior:**
-- Sets `algorithmsInProgress` to true during execution
-- For each investment round, selects the stock with the highest `greedyReturn`
-- Calls the `bernoulli()` function with the selected stock's `bernoulli_param`
-- Stores results in `algorithmStore.investmentsGreedy` as `AlgoInvestment` objects
+- Cold-start initialization for all stocks
+- Boolean results converted to 0/1 for comparison
+- Sets `thompsonReturn: null` in all results
 
-### `eGreedy_bernoulli()`
+### `greedy_gaussian(): void` / `eGreedy_gaussian(): void`
 
-Executes the epsilon-greedy algorithm with Bernoulli bandits using store-managed data.
+Execute greedy algorithms with Gaussian bandits.
 
 **Dependencies:**
-- Same as `greedy_bernoulli()`
-- Uses `val_epsilon` (0.1) for exploration probability
+- Requires `banditStore.selectedStocks` with `gaussian_param: number`
+- Updates `algorithmStore.investmentsGreedy: AlgoInvestment[]`
 
 **Behavior:**
-- Same as `greedy_bernoulli()` but with 10% probability of random arm selection
-- Exploration: Random stock selection when `Math.random() < val_epsilon`
-- Exploitation: Best performing stock selection otherwise
+- Cold-start initialization for all stocks
+- Numeric results stored directly as `greedyReturn`
+- Sets `thompsonReturn: null` in all results
 
-### `greedy_gaussian()`
+### `xGreedy(bandit: 'bernoulli' | 'gaussian', epsilon: boolean): void`
 
-Executes the standard greedy algorithm with Gaussian bandits using store-managed data.
-
-**Dependencies:**
-- Requires `banditStore.selectedStocks` to contain stock configurations with `gaussian_param`
-- Requires `banditStore.possibleInvestments` to define the number of investment rounds
-- Updates `algorithmStore.investmentsGreedy` with results
-
-**Behavior:**
-- Sets `algorithmsInProgress` to true during execution
-- For each investment round, selects the stock with the highest `greedyReturn`
-- Calls the `gaussian()` function with the selected stock's `gaussian_param`
-- Stores results in `algorithmStore.investmentsGreedy` as `AlgoInvestment` objects
-
-### `eGreedy_gaussian()`
-
-Executes the epsilon-greedy algorithm with Gaussian bandits using store-managed data.
-
-**Dependencies:**
-- Same as `greedy_gaussian()`
-- Uses `val_epsilon` (0.1) for exploration probability
-
-**Behavior:**
-- Same as `greedy_gaussian()` but with 10% probability of random arm selection
-- Exploration: Random stock selection when `Math.random() < val_epsilon`
-- Exploitation: Best performing stock selection otherwise
-
-### `xGreedy(bandit, epsilon)`
-
-The core implementation of both the standard greedy and epsilon-greedy algorithms that handles both Bernoulli and Gaussian bandits using store-managed data.
-
-**Parameters:**
-- `bandit`: String indicating the bandit type ('bernoulli' or 'gaussian')
-- `epsilon`: Boolean indicating whether to use epsilon-greedy (true) or standard greedy (false)
-
-**Dependencies:**
-- Uses `banditStore.selectedStocks` for stock configurations
-- Uses `banditStore.possibleInvestments` for iteration count
-- Updates `algorithmStore.investmentsGreedy` with results
-- Sets `algorithmStore.algorithmsInProgress` during execution
+Core implementation handling both bandit types and exploration strategies.
 
 **Algorithm Flow:**
-1. Initialize tracking variables for the best arm outside the loop
-2. Set `algorithmsInProgress` to true
-3. For each investment round (based on `possibleInvestments`):
-   - If epsilon is true and `Math.random() < val_epsilon` (0.1):
-     - Select a random stock index (exploration)
-   - Else:
-     - Identify the stock with the highest `greedyReturn` from previous investments (exploitation)
-   - Pull the selected stock using the appropriate bandit function
-   - Push the result to `algorithmStore.investmentsGreedy` as an `AlgoInvestment` object
-4. Set `algorithmsInProgress` to false
-5. Results are stored in the algorithm store for reactive UI updates
+1. **Cold-Start Initialization**: Initialize each stock with `greedyReturn: 0`
+2. Set `algorithmsInProgress: true`
+3. For each investment round:
+   - **Exploration/Exploitation Decision**: Random selection if `epsilon && Math.random() < 0.1`
+   - **Best Arm Selection**: Choose arm with highest `greedyReturn` using `findIndex()`
+   - **Action**: Pull selected arm and store result
+4. Set `algorithmsInProgress: false`
+
+## Key Implementation Details
+
+### Cold-Start Initialization
+
+```typescript
+stock.forEach(stock => {
+    algorithmStore.investmentsGreedy.push({
+        stock: stock,
+        greedyReturn: 0,
+        thompsonReturn: null,
+        ucbReturn: null,
+        gradientReturn: null,
+        optimisticInitialReturn: null,
+        userAlgorithmReturn: null
+    });
+});
+```
+
+### Epsilon-Greedy Selection
+
+```typescript
+if (epsilon && Math.random() < val_epsilon) {
+    best_arm_index = Math.floor(Math.random() * stock.length); // Exploration
+} else {
+    // Exploitation: Find best arm using findIndex()
+    for (let i = 0; i < algorithmStore.investmentsGreedy.length; i++) {
+        if (current_value > best_arm_value) {
+            best_arm_index = stock.findIndex(s => s === algorithmStore.investmentsGreedy[i].stock);
+        }
+    }
+}
+```
+
+### Switch-Case Implementation
+
+```typescript
+switch (bandit) {
+    case 'bernoulli':
+        algorithmStore.investmentsGreedy.push({
+            stock: chosen_arm,
+            greedyReturn: bernoulli(chosen_arm.bernoulli_param) ? 1 : 0,
+            thompsonReturn: null,
+            // ... all other algorithm returns set to null
+        });
+        break;
+    case 'gaussian':
+        algorithmStore.investmentsGreedy.push({
+            stock: chosen_arm,
+            greedyReturn: gaussian(chosen_arm.gaussian_param),
+            thompsonReturn: null,
+            // ... all other algorithm returns set to null
+        });
+        break;
+}
+```
 
 ## Data Management
 
 ### Store Integration
-
-The algorithm integrates with two Pinia stores:
 
 #### `useBanditStore`
 - **`selectedStocks`**: Array of `selectedStock` objects containing stock information and bandit parameters
@@ -145,109 +147,28 @@ The algorithm integrates with two Pinia stores:
 - **`investmentsGreedy`**: Array of `AlgoInvestment` objects storing algorithm results
 - **`algorithmsInProgress`**: Boolean flag indicating algorithm execution status
 
-### Data Flow
-
-1. **Initialization**: Algorithm reads configuration from `banditStore`
-2. **Execution**: Each investment round creates an `AlgoInvestment` object
-3. **Storage**: Results are pushed to `algorithmStore.investmentsGreedy`
-4. **UI Updates**: Vue.js reactivity automatically updates the interface
-
 ### Data Types
 
-#### `AlgoInvestment`
 ```typescript
 interface AlgoInvestment {
     stock: selectedStock;
     greedyReturn: number | null;
+    thompsonReturn: number | null;
+    ucbReturn: number | null;
+    gradientReturn: number | null;
+    optimisticInitialReturn: number | null;
+    userAlgorithmReturn: number | null;
 }
 ```
-
-#### `selectedStock`
-```typescript
-interface selectedStock {
-    stock: Stock;
-    bernoulli_param: number;
-    gaussian_param: number;
-}
-```
-
-## Implementation Details
-
-### Bandit Types
-
-#### Bernoulli Bandits
-
-For Bernoulli bandits, each stock selection returns a boolean outcome (true/false) based on the stock's `bernoulli_param`. The result is stored as `greedyReturn` in the `AlgoInvestment` object, where boolean true is converted to 1 and false to 0 for comparison purposes.
-
-#### Gaussian Bandits
-
-For Gaussian bandits, each stock selection returns a numeric value sampled from a Gaussian distribution using the stock's `gaussian_param`. The result is stored directly as `greedyReturn` in the `AlgoInvestment` object.
-
-### Epsilon-Greedy Mechanism
-
-The epsilon-greedy implementation uses a parameter `val_epsilon` (default 0.1) to control the exploration-exploitation trade-off:
-
-```javascript
-if (epsilon && Math.random() < val_epsilon) {
-    // Exploration: Select a random stock
-    best_arm_index = Math.floor(Math.random() * stock.length);
-} else {
-    // Exploitation: Select the stock with the best greedyReturn
-    let best_arm_value = algorithmStore.investmentsGreedy[0].greedyReturn || 0;
-    for (let i = 0; i < algorithmStore.investmentsGreedy.length; i++) {
-        const current_value = algorithmStore.investmentsGreedy[i].greedyReturn || 0;
-        if (current_value > best_arm_value) {
-            best_arm_value = current_value;
-            best_arm_index = i;
-        }
-    }
-}
-```
-
-This implementation:
-1. With 10% probability, selects a completely random stock (exploration)
-2. With 90% probability, selects the stock with the highest current `greedyReturn` (exploitation)
-
-### Store-Based Architecture Benefits
-
-1. **Reactive UI Updates**: Vue.js reactivity automatically updates the interface when algorithm data changes
-2. **Centralized State**: All algorithm and bandit data is managed in dedicated stores
-3. **No Parameter Passing**: Eliminates the need for complex parameter management
-4. **Scalability**: Easy to extend with additional algorithm types and configurations
-
-## Limitations and Considerations
-
-1. **Cold Start Problem**: In the early investment rounds, the algorithm may make suboptimal decisions due to limited data.
-2. **Exploration-Exploitation Trade-off**:
-   - Standard greedy: No explicit exploration, which may lead to getting stuck with suboptimal stocks.
-   - Epsilon-greedy: Fixed exploration rate may be inefficient in later stages when a good stock has been identified.
-3. **Store Dependencies**: The algorithm requires properly initialized stores with valid stock configurations.
-4. **Reactive State Management**: Changes to store data during algorithm execution may affect results.
-5. **Parameter Tuning**: The epsilon value (0.1 by default) may need tuning based on the specific investment context.
 
 ## Usage Example
 
-```javascript
-import { useBanditStore } from '@/stores/bandit';
-import { useAlgorithmStore } from '@/stores/algorithms';
+```typescript
 import { greedy_bernoulli, eGreedy_bernoulli, greedy_gaussian, eGreedy_gaussian } from '@/algorithms/greedy';
 
-// Setup stores
-const banditStore = useBanditStore();
-const algorithmStore = useAlgorithmStore();
-
-// Configure bandit store with stocks and investment rounds
+// Configure stores
 banditStore.selectedStocks = [
-  {
-    stock: { id: 1, name: "Stock A", price: 100, logo_url: "..." },
-    bernoulli_param: 0.7,
-    gaussian_param: 0.5
-  },
-  {
-    stock: { id: 2, name: "Stock B", price: 150, logo_url: "..." },
-    bernoulli_param: 0.5,
-    gaussian_param: 0.3
-  }
+  { stock: {...}, bernoulli_param: 0.7, gaussian_param: 0.5 }
 ];
 banditStore.possibleInvestments = 1000;
 
@@ -257,26 +178,20 @@ eGreedy_bernoulli();         // Epsilon-greedy with Bernoulli bandits
 greedy_gaussian();           // Standard greedy with Gaussian bandits
 eGreedy_gaussian();          // Epsilon-greedy with Gaussian bandits
 
-// Access results
+// Access results (includes cold-start + actual investments)
 console.log(algorithmStore.investmentsGreedy);
 ```
 
 ## Dependencies
 
-The implementation depends on:
-- **Pinia stores**: `useBanditStore` and `useAlgorithmStore` for state management
-- **Bandit functions**: `bernoulli` and `gaussian` imported from respective bandit modules
+- **Pinia stores**: `useBanditStore` and `useAlgorithmStore` for type-safe state management
+- **Bandit functions**: `bernoulli(param: number): boolean` and `gaussian(param: number): number`
 - **Vue.js reactivity**: For automatic UI updates and data binding
+- **TypeScript types**: `selectedStock`, `AlgoInvestment` interfaces for type safety
 
-## Testing
+## Limitations
 
-A comprehensive test suite is available in `/src/tests/greedy.test.js`. The tests validate:
-
-1. **Store Integration**: Proper interaction with Pinia stores
-2. **Algorithm Logic**: Correct implementation of greedy and epsilon-greedy selection
-3. **Data Flow**: Proper data management from stores to algorithm results
-4. **Bandit Function Calls**: Correct usage of Bernoulli and Gaussian bandit functions
-5. **State Management**: Proper handling of `algorithmsInProgress` flag
-6. **Edge Cases**: Handling of empty stores, invalid configurations, and error conditions
-
-The tests use real store instances and bandit functions, eliminating the need for mocks and ensuring integration testing.
+1. **Cold Start Problem**: Early decisions may be suboptimal due to limited data
+2. **Fixed Epsilon**: 0.1 exploration rate may not be optimal for all scenarios
+3. **No Learning Rate**: Simple averaging without sophisticated learning mechanisms
+4. **Store Dependencies**: Requires properly initialized stores with valid stock configurations

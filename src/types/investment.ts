@@ -9,7 +9,11 @@ export interface Investment {
 export interface AlgoInvestment {
     stock: selectedStock;
     greedyReturn: number | null;
-    // Hier können später weitere Algorithmus-spezifische Returns ergänzt werden
+    thompsonReturn: number | null;
+    ucbReturn: number | null;
+    gradientReturn: number | null;
+    optimisticInitialReturn: number | null;
+    userAlgorithmReturn: number | null;
 }
 
 export interface DisplayDataPoint {
