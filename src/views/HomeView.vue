@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
-import { type Ref, ref, watch } from 'vue';
+import { type Ref, ref, watch, computed } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
@@ -28,6 +28,28 @@ const bandits = [
   { name: 'Bernoulli-Bandit', key: 'bernoulli' },
 ];
 const activeBandit: Ref<string> = ref(bandits[0].key);
+const isTheoryOpen = ref(false);
+
+const gaussianTheory = [
+  `<strong>Der Gaussian-Bandit</strong> ist eine Variante des Multi-Armed-Bandit-Problems, bei der jede Aktion eine <strong>kontinuierliche Belohnung</strong> liefert, die einer <strong>Normalverteilung</strong> folgt. W&auml;hrend der Bernoulli-Bandit nur zwischen Erfolg und Misserfolg unterscheidet, erzeugt der Gaussian-Bandit reelle Werte &ndash; etwa Ums&auml;tze, Messwerte oder Bewertungsscores. Ziel ist es, jene Aktion zu finden, deren erwarteter Mittelwert am h&ouml;chsten ist und damit langfristig den gr&ouml;&szlig;ten Nutzen bringt.`,
+  `Jeder Arm <em>i</em> wird durch eine Zufallsvariable <span class="math">r<sub>t</sub> &#8764; &#119913;(&#956;<sub>i</sub>, &#963;<sub>i</sub><sup>2</sup>)</span> beschrieben. Der Mittelwert &#956;<sub>i</sub> ist unbekannt und wird schrittweise aus Beobachtungen gesch&auml;tzt, die Varianz &#963;<sub>i</sub><sup>2</sup> beschreibt die Streuung der Ergebnisse. Wie in allen Bandit-Problemen steht der Lernende vor dem <strong>Exploration-Exploitation-Dilemma</strong>: Er muss abw&auml;gen, ob er bekannte, gute Optionen weiter nutzt oder neue Alternativen ausprobiert, um Unsicherheiten zu verringern.`,
+  `In einer bayesschen Sichtweise wird &uuml;ber jeden Mittelwert eine Wahrscheinlichkeitsverteilung gef&uuml;hrt, die nach jeder Beobachtung aktualisiert wird. Da Normalverteilungen konjugiert zueinander sind, bleibt auch der Posterior normalverteilt &ndash; das erm&ouml;glicht besonders effizientes Lernen. Ein h&auml;ufig eingesetzter Ansatz ist <strong>Thompson Sampling</strong>: F&uuml;r jeden Arm wird ein m&ouml;glicher Mittelwert aus der aktuellen Verteilung gezogen, der Arm mit dem h&ouml;chsten Wert gew&auml;hlt und die Verteilung anschlie&szlig;end anhand des neuen Rewards angepasst. So entsteht eine nat&uuml;rliche Balance zwischen Entdecken und Ausnutzen.`,
+  `Ein typisches Beispiel ist die Preisoptimierung: Ein Unternehmen testet mehrere Preisstrategien, deren Ums&auml;tze leicht schwanken. Anfangs werden alle Varianten gleichm&auml;&szlig;ig ausprobiert, sp&auml;ter immer h&auml;ufiger jene mit dem h&ouml;chsten gesch&auml;tzten Ertrag. Der Gaussian-Bandit lernt also, welche Strategie langfristig am profitabelsten ist.`,
+  `Gaussian-Banditen eignen sich &uuml;berall dort, wo Belohnungen <strong>kontinuierlich und verrauscht</strong> sind &ndash; etwa in der Online-Werbung, bei Produktions- oder Prozessoptimierung oder in datengetriebenen Lernsystemen. Da sie den vollen Informationsgehalt jeder Beobachtung nutzen, lernen sie meist schneller und stabiler als Modelle mit bin&auml;ren Rewards.`,
+  `Wer sich tiefer mit der Theorie und den mathematischen Grundlagen besch&auml;ftigen m&ouml;chte, findet eine ausf&uuml;hrliche Einf&uuml;hrung in <a href="https://www.cambridge.org/highereducation/books/bandit-algorithms/06C4BB5A1B0B4223931C0463FBEC6F8E" target="_blank" rel="noopener">Lattimore &amp; Szepesv&aacute;ri (2020), <em>Bandit Algorithms</em></a> sowie in <a href="http://incompleteideas.net/book/the-book-2nd.html" target="_blank" rel="noopener">Sutton &amp; Barto (2018), <em>Reinforcement Learning: An Introduction</em></a>.`,
+];
+const bernoulliTheory = [
+  `<strong>Der Bernoulli-Bandit</strong> ist die einfachste und zugleich bekannteste Form des Multi-Armed-Bandit-Problems. Er beschreibt eine Situation, in der jede Aktion (&bdquo;Arm&ldquo;) bei jedem Versuch entweder einen Erfolg (1) oder einen Misserfolg (0) liefert. Ziel ist es, herauszufinden, welcher Arm die h&ouml;chste Erfolgswahrscheinlichkeit besitzt und dadurch langfristig die meisten positiven Ergebnisse erzielt.`,
+  `Jeder Arm <em>i</em> ist durch eine unbekannte Erfolgswahrscheinlichkeit p<sub>i</sub> definiert. Der beobachtete Reward folgt einer Bernoulli-Verteilung: <span class="math">r<sub>t</sub> &#8764; Bernoulli(p<sub>i</sub>)</span>.`,
+  `Das bedeutet, dass jede Beobachtung nur aus einem einzelnen bin&auml;ren Ereignis besteht. Trotz dieser Einfachheit ist der Bernoulli-Bandit ein zentrales Modell, weil er das Grundprinzip des <strong>Exploration-Exploitation-Dilemmas</strong> in seiner reinsten Form darstellt: Der Lernende muss abw&auml;gen, ob er den bisher besten Arm weiter spielt oder einen anderen ausprobiert, um dessen Erfolgswahrscheinlichkeit besser einsch&auml;tzen zu k&ouml;nnen.`,
+  `In einer <strong>bayesschen Sichtweise</strong> wird &uuml;ber jeden Arm eine Wahrscheinlichkeitsverteilung gef&uuml;hrt, die die Unsicherheit &uuml;ber p<sub>i</sub> ausdr&uuml;ckt. Typischerweise wird eine <strong>Beta-Verteilung</strong> als Prior verwendet, weil sie konjugiert zur Bernoulli-Verteilung ist. Dadurch bleibt die Posterior-Verteilung ebenfalls Beta-verteilt und kann mit jeder neuen Beobachtung einfach aktualisiert werden. Ein Beta-Prior mit Parametern (&#945;<sub>i</sub>, &#946;<sub>i</sub>) wird nach jedem Erfolg oder Misserfolg wie folgt angepasst:<div class="math">&#945;<sub>i</sub> &larr; &#945;<sub>i</sub> + r<sub>t</sub>,<br>&#946;<sub>i</sub> &larr; &#946;<sub>i</sub> + (1 &minus; r<sub>t</sub>)</div> Diese Aktualisierung st&auml;rkt den Glauben an den wahren Wert von p<sub>i</sub>, je mehr Daten gesammelt werden.`,
+  `Ein besonders verbreiteter Algorithmus ist <strong>Thompson Sampling</strong>. Dabei wird f&uuml;r jeden Arm ein zuf&auml;lliger Wert <span class="math">p&#770;<sub>i</sub></span> aus seiner Beta-Verteilung gezogen. Der Arm mit dem h&ouml;chsten gezogenen Wert wird ausgew&auml;hlt und nach dem Ergebnis (Erfolg oder Misserfolg) wird die entsprechende Verteilung aktualisiert. Auf diese Weise balanciert Thompson Sampling das Erkunden neuer M&ouml;glichkeiten und das Ausnutzen bekannter erfolgreicher Arme &ndash; ganz ohne festen Zufallsparameter.`,
+  `Ein klassisches Beispiel ist ein <strong>A/B-Test</strong> im Online-Marketing: Zwei Werbeanzeigen (Arm A und Arm B) werden verschiedenen Nutzern gezeigt. Jeder Klick gilt als Erfolg (1), kein Klick als Misserfolg (0). Anfangs werden beide Varianten gleich oft gezeigt, sp&auml;ter bevorzugt das System die Anzeige mit der h&ouml;heren gesch&auml;tzten Klickwahrscheinlichkeit. So wird automatisch die erfolgreichere Variante identifiziert, w&auml;hrend die andere weiter gelegentlich getestet wird.`,
+  `Bernoulli-Banditen kommen &uuml;berall dort zum Einsatz, wo Entscheidungen auf <strong>bin&auml;ren Ergebnissen</strong> basieren &ndash; etwa in A/B-Tests, Empfehlungssystemen oder Experimenten mit Erfolg/Misserfolg-Feedback. Sie bilden das Fundament vieler moderner Lern- und Optimierungsverfahren und sind oft der erste Schritt hin zu komplexeren Modellen wie Gaussian- oder Contextual-Banditen.`,
+  `Wer sich tiefer mit der Theorie und den mathematischen Grundlagen besch&auml;ftigen m&ouml;chte, findet eine fundierte Einf&uuml;hrung in <a href="https://www.cambridge.org/highereducation/books/bandit-algorithms/06C4BB5A1B0B4223931C0463FBEC6F8E" target="_blank" rel="noopener">Lattimore &amp; Szepesv&aacute;ri (2020), <em>Bandit Algorithms</em></a> oder eine praxisorientierte Darstellung in <a href="https://web.stanford.edu/~bvr/pubs/TS_Tutorial.pdf" target="_blank" rel="noopener">Russo &amp; Van Roy (2016), <em>An Introduction to Thompson Sampling</em></a>.`,
+];
+
+const theoryContent = computed<string[]>(() => (activeBandit.value === 'gaussian' ? gaussianTheory : bernoulliTheory));
 
 
 // ----------------------- stock management modal -----------------------
@@ -184,9 +206,21 @@ function onInvest(stock: selectedStock) {
           Tabelle
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
-         <div>
-          Theorie
-         </div>
+        <div class="theory-section">
+          <button type="button" class="theory-toggle" @click="isTheoryOpen = !isTheoryOpen">
+            <span>Theorie</span>
+            <span class="material-symbols-outlined" :class="{ rotated: isTheoryOpen }">
+              expand_more
+            </span>
+          </button>
+          <div v-if="isTheoryOpen" class="theory-content">
+            <p
+              v-for="(paragraph, index) in theoryContent"
+              :key="index"
+              v-html="paragraph"
+            ></p>
+          </div>
+        </div>
       </div>
       <!-- Sidebar -->
       <div class="sidebar-home-view">
@@ -366,6 +400,60 @@ function onInvest(stock: selectedStock) {
   justify-content: center;
   overflow: hidden;
 }
+
+.theory-section {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.theory-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-size: large;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.theory-toggle .material-symbols-outlined {
+  transition: transform 0.2s ease;
+}
+
+.theory-toggle .material-symbols-outlined.rotated {
+  transform: rotate(180deg);
+}
+
+.theory-content {
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background-color: var(--background-secondary, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary);
+}
+
+.theory-content .math {
+  font-family: 'Cambria', 'Times New Roman', serif;
+  font-style: italic;
+  display: block;
+  margin: 0.5rem 0;
+  text-align: center;
+  white-space: normal;
+}
+
+.theory-content a {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
 
 /* Sidebar */
 .sidebar-portfolio {
