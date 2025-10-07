@@ -7,6 +7,7 @@ import stocks from '@/data/aktien.json'
 import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
 import type { selectedStock, Stock } from '@/types/bandits';
 import MainTable from '@/components/MainTable.vue';
+import router from '@/router';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -29,6 +30,10 @@ function onBanditChange(banditKey: string) {
     return;
   }
   banditStore.activeBandit = banditKey;
+}
+
+function onCompareAlgorithms() {
+  router.push('/algo')
 }
 
 // ----------------------- stock management modal -----------------------
@@ -230,6 +235,9 @@ const tableHeaders = computed(() => {
             <button class="portfolio-item-button" @click="onInvest(selectedStock)" :disabled="!banditStore.isInvestmentPossible">
               Investieren
             </button>
+          </div>
+          <div class="sidebar-portfolio-controls">
+            <button class="white-button" @click="onCompareAlgorithms">Vergleich mit weiteren Algorithmen</button>
           </div>
         </div>
       </div>
@@ -459,6 +467,7 @@ const tableHeaders = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 1rem;
   margin-bottom: 1rem;
   width: 100%;
 }
