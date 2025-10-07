@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
-import { type Ref, ref, watch } from 'vue';
+import { computed, type Ref, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
@@ -96,7 +96,13 @@ function onInvest(stock: selectedStock) {
   banditStore.pullArm(banditStore.activeBandit, stock)
 }
 
-const tableHeaders = [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Bandit-Ergebnis"}];
+const tableHeaders = computed(() => {
+  if (banditStore.activeBandit === 'bernoulli') {
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}];
+  } else if (banditStore.activeBandit === 'gaussian') {
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}];
+  }
+});
 
 </script>
 
