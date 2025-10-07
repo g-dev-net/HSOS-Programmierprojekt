@@ -1,203 +1,126 @@
-# Gaussian Arms Module
+# Gaussian Sampler Technical Documentation
 
-In memory utilities for simulating Gaussian bandit pulls where each arm has a mean return that scales with an investment volume. The module exposes helpers to create or update arms and to record pulls.
+## Overview
 
-> File context: JavaScript ES modules. Works in Node and in the browser.
+The `gaussian.ts` module provides a function that samples from a Normal distribution using `d3-random`. It returns a real valued draw with mean `mu_percent` and fixed standard deviation `sigma = 0.5`. This is useful for continuous reward models, synthetic data, and probabilistic simulations.
 
-## Install
+## Architecture
 
-```bash
-npm i d3-random
-```
+This utility depends on `d3-random` and is framework agnostic.
 
-## Exports
-
-```js
-export const gaussian_arms = [];
-export const gaussian_pulls = [];
-
-export function gaussian_generate_arm(arm_id, investment_volume) { ... }
-export function gaussian_pull_arm(arm_id, gaussian_arms_array = gaussian_arms) { ... }
-```
-
-## Data model
-
-### Arm
+### Module
 
 ```ts
-type GaussianArm = {
-  arm_id: string
-  investment_volume: number        // > 0
-  mu_percent: number               // r in [-0.1, 0.1]
-  mu_absolute: number              // r * volume + volume
-}
-```
-
-`mu_percent` is the expected percentage return for the arm. `mu_absolute` is the expected absolute value after investing `investment_volume`.
-
-### Pull result
-
-```ts
-type GaussianPull = {
-  arm_id: string
-  pull_number: number              // global 1-based counter
-  value: number                    // realized absolute value
-  value_percent: number            // realized percentage return
-  mu_percent: number               // arm mean in percent at the time of pull
-  mu_absolute: number              // arm mean in absolute terms at the time of pull
-}
-```
-
-All state is kept in memory.
-
-* `gaussian_arms`: list of `GaussianArm`
-* `gaussian_pulls`: append-only list of `GaussianPull`
-
-## How the model works
-
-* Arm creation sets a mean percentage return `r` drawn uniformly from `[-0.1, 0.1]`.
-* The absolute mean becomes `mu_absolute = r * volume + volume`.
-* A pull samples `z` from a normal distribution `N(r, 0.5^2)` using `d3-random`.
-* The realized absolute value is `value = z * volume + volume`.
-* The realized percentage return is `(value - volume) / volume`.
-
-## API
-
-### `gaussian_generate_arm(arm_id: string, investment_volume: number): GaussianArm`
-
-Creates or overwrites an arm with identifier `arm_id` and a positive `investment_volume`.
-
-Behavior
-
-* Validates inputs.
-* Draws `r` uniformly from `[-0.1, 0.1]`.
-* Computes `mu_absolute = r * volume + volume`.
-* Inserts or replaces the arm in `gaussian_arms`.
-* Returns the created or updated arm.
-
-Validation
-
-* `arm_id` must be a nonempty string.
-* `investment_volume` must be a positive finite number.
-
-Side effects
-
-* Mutates the exported `gaussian_arms` array.
-
----
-
-### `gaussian_pull_arm(arm_id: string, gaussian_arms_array: GaussianArm[] = gaussian_arms): GaussianPull`
-
-Simulates a Gaussian pull for the arm with id `arm_id`. Uses `d3-random` to draw from `N(mu_percent, 0.5)`.
-
-Behavior
-
-* Validates inputs and looks up the arm in `gaussian_arms_array`.
-* Samples `z ~ N(arm.mu_percent, 0.5^2)` with `randomNormal`.
-* Computes `value = z * arm.investment_volume + arm.investment_volume`.
-* Computes `value_percent = (value - arm.investment_volume) / arm.investment_volume`.
-* Appends the result to `gaussian_pulls` with an increasing `pull_number`.
-* Returns the pull record.
-
-Validation
-
-* `arm_id` must be a nonempty string.
-* `gaussian_arms_array` must be an array.
-* Throws if the arm is not found.
-
-Side effects
-
-* Mutates the exported `gaussian_pulls` array.
-
-## Examples
-
-Create or refresh an arm and run a few pulls.
-
-```js
-import {
-  gaussian_arms,
-  gaussian_pulls,
-  gaussian_generate_arm,
-  gaussian_pull_arm
-} from "./gaussian.js";
-
-const armA = gaussian_generate_arm("A", 1_000);
-
-for (let i = 0; i < 3; i++) {
-  const res = gaussian_pull_arm("A"); // uses default gaussian_arms
-  console.log(res);
-}
-
-console.log("Arms", gaussian_arms);
-console.log("Total pulls", gaussian_pulls.length);
-```
-
-Work with a custom arm array.
-
-```js
-const local_arms = [];
-local_arms.push(gaussian_generate_arm("X", 500));
-const r1 = gaussian_pull_arm("X", local_arms);
-```
-
-Reset state for a fresh experiment.
-
-```js
-gaussian_arms.length = 0;
-gaussian_pulls.length = 0;
-```
-
-## Deterministic testing
-
-This module uses `d3-random` for normal draws and `Math.random` for the uniform draw during arm generation. For reproducible tests:
-
-* Seed `d3-random` by providing your own PRNG. For example:
-
-```js
 import { randomNormal } from "d3-random";
 
-// simple seeded LCG for tests
-function lcg(seed = 123456789) {
-  let s = seed >>> 0;
-  return () => {
-    s = (1664525 * s + 1013904223) >>> 0;
-    return (s >>> 8) / 0x01000000;
-  };
+export function gaussian(mu_percent: number) {
+  const sigma: number = 0.5;
+  const sample = randomNormal(mu_percent, sigma);
+  const z: number = sample();
+  return z;
 }
-
-const rng = lcg(42);
-const normal = randomNormal.source(rng)(0, 1); // z ~ N(0, 1)
 ```
 
-* Monkey patch `Math.random` around `gaussian_generate_arm` to control `r` in tests, and restore it after the test.
+### Dependency
 
-## Performance notes
+* `d3-random` provides `randomNormal(mean, sd)` which returns a zero argument sampler that yields independent draws.
 
-* `gaussian_generate_arm` uses `findIndex` which is O(n).
-* `gaussian_pull_arm` uses `find` which is O(n).
-* Appending to `gaussian_pulls` is O(1) amortized.
+## Functions
 
-For many arms consider an index map `{ [arm_id]: number }` that points into `gaussian_arms`.
+### `gaussian(mu_percent: number): number`
 
-## State management tips
+Samples a Normal random variable with mean `mu_percent` and standard deviation `0.5`.
 
-* The arrays are module-level singletons. Multiple imports in one process share the same state.
-* `pull_number` counts globally across all arms. If you need per arm counters, track a separate map.
+#### Parameters
 
-## Safety and randomness
+* `mu_percent`
+  The mean of the distribution. The name suggests a percentage scale. If your application uses percentages in `[0, 1]` or `[0, 100]`, ensure consistent interpretation across the codebase.
 
-* `Math.random` is not cryptographically secure. The uniform draw for `r` is intended for simulation only.
-* `d3-random` relies on the host PRNG by default. Provide a seeded PRNG for reproducible tests as shown above.
+#### Returns
+
+* `number`
+  A real valued draw from `N(mu_percent, 0.5²)`.
+
+#### Notes
+
+* The spread is fixed at `sigma = 0.5`. If you need a different variance, add a parameter or create a variant such as `gaussianWith(mu, sigma)`.
+
+## Statistical Implementation
+
+The function constructs a sampler for a Normal distribution and evaluates it once.
+
+```ts
+const sigma = 0.5;
+const sample = randomNormal(mu_percent, sigma);
+const value = sample(); // value ~ Normal(mu_percent, sigma^2)
+```
+
+`randomNormal` uses a high quality algorithm to transform uniform randomness into a Normal draw. Each call to `sample()` is independent given the underlying source of randomness.
+
+## Usage Example
+
+```ts
+import { gaussian } from "./gaussian";
+
+// Draw a daily return centered at 2 percent on your chosen scale
+const draw = gaussian(0.02);
+
+// Use the value in a simulation
+portfolioValue *= 1 + draw;
+```
+
+## Input Validation
+
+Enforce parameter checks when helpful. A common pattern is to guard against non finite means and to document the chosen scale for `mu_percent`.
+
+```ts
+import { randomNormal } from "d3-random";
+
+export function gaussian(mu_percent: number) {
+  if (!Number.isFinite(mu_percent)) {
+    throw new TypeError("mu_percent must be a finite number");
+  }
+  const sigma = 0.5;
+  return randomNormal(mu_percent, sigma)();
+}
+```
+
+### Configurable Variant
+
+```ts
+export function gaussianWith(mu: number, sigma: number) {
+  if (!Number.isFinite(mu) || !Number.isFinite(sigma) || sigma < 0) {
+    throw new RangeError("mu and sigma must be finite, sigma must be non negative");
+  }
+  return randomNormal(mu, sigma)();
+}
+```
+
+## Data Shape
+
+The function is stateless and returns a single numeric sample per call. For analytics, persist draws as plain numbers and compute aggregates such as mean or variance downstream.
+
+## Performance
+
+The function builds a `randomNormal` sampler and draws once. Time complexity per call is O(1) with negligible memory overhead. If you call this in tight loops, consider constructing the sampler once and reusing it.
+
+```ts
+const sample = randomNormal(mu, 0.5);
+for (let i = 0; i < N; i++) {
+  const z = sample();
+  // process z
+}
+```
 
 ## Limitations
 
-* No persistence. State is lost across reloads.
-* No concurrency control. Mutations are not atomic.
-* Fixed normal standard deviation `sigma = 0.5`. Consider making it configurable if needed.
+1. The standard deviation is fixed at `0.5` in the basic function. Use a configurable variant if your application requires different dispersion.
+2. Normal draws are unbounded. If your domain has hard bounds, consider truncation or a bounded distribution.
+3. The quality of randomness depends on the underlying source used by `d3-random`. For cryptographic needs use a secure RNG and a library designed for that context.
 
-## Future extensions
+## Summary
 
-* Add setters to pin `mu_percent` for deterministic scenarios.
-* Make `sigma` a parameter of `gaussian_pull_arm`.
-* Provide pure functions that accept and return state instead of mutating module singletons.
-* Add summary helpers for mean, variance, and win rates per arm.
+* `gaussian` returns a single Normal draw with mean `mu_percent` and `sigma = 0.5`.
+* The implementation uses `d3-random` and is stateless and fast.
+* Use a configurable variant when you need control over the variance.
+* Suitable for continuous models, simulations, and reward generation where Normal noise is appropriate.
