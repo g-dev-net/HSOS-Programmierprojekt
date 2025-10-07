@@ -18,6 +18,7 @@
     "@canvasjs/vue-charts": "^1.0.4",
     "chart.js": "^4.5.0",
     "d3": "^7.9.0",
+    "jstat": "^1.9.6",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-chartjs": "^5.3.2",

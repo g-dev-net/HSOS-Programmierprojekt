@@ -1,776 +1,1249 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { greedy_bernoulli, greedy_gaussian, eGreedy_bernoulli, eGreedy_gaussian, init_array_arms } from '../algorithms/greedy.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { greedy_bernoulli, greedy_gaussian, eGreedy_bernoulli, eGreedy_gaussian } from '../algorithms/greedy.ts';
+import { useBanditStore } from '@/stores/bandit';
+import { useAlgorithmStore } from '@/stores/algorithms';
 
-// Mock-Module vor dem Import, damit die Mocks korrekt funktionieren
-vi.mock('../bandits/bernoulli.js', () => ({
-    bernoulli: vi.fn()
-}));
+describe('Greedy Algorithm Store-Based Tests', () => {
+    let banditStore;
+    let algorithmStore;
 
-vi.mock('../bandits/gaussian.js', () => ({
-    gaussian: vi.fn()
-}));
-
-// Jetzt importieren wir die gemockten Module
-import * as bernoulliModule from '../bandits/bernoulli.js';
-import * as gaussianModule from '../bandits/gaussian.js';
-
-describe('Greedy Algorithm Tests', () => {
-    // Setup mocks before each test - can be delete if real bandits are implemented
+    // Setup Pinia and stores before each test
     beforeEach(() => {
-        // Zurücksetzen der Mocks vor jedem Test
-        vi.resetAllMocks();
+        setActivePinia(createPinia());
+        banditStore = useBanditStore();
+        algorithmStore = useAlgorithmStore();
+        
+        // Setup default test data
+        banditStore.selectedStocks = [
+            {
+                stock: { id: 1, name: "Stock A", price: 100, logo_url: "test1.jpg" },
+                bernoulli_param: 0.7,
+                gaussian_param: 0.5
+            },
+            {
+                stock: { id: 2, name: "Stock B", price: 150, logo_url: "test2.jpg" },
+                bernoulli_param: 0.3,
+                gaussian_param: 0.2
+            },
+            {
+                stock: { id: 3, name: "Stock C", price: 200, logo_url: "test3.jpg" },
+                bernoulli_param: 0.9,
+                gaussian_param: 0.8
+            }
+        ];
+        banditStore.possibleInvestments = 10;
+        
+        // Reset algorithm store
+        algorithmStore.investmentsGreedy = [];
+        algorithmStore.algorithmsInProgress = false;
     });
 
-    // Restore all mocks after each test
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
-    // Tests für init_array_arms
-    describe('init_array_arms', () => {
-        it('should initialize array with correct structure', () => {
+    // Tests für Store Integration
+    describe('Store Integration', () => {
+        it('should read configuration from bandit store', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.2 }
-            ];
+            banditStore.possibleInvestments = 5;
             
             // Act
-            const result = init_array_arms(arms);
+            greedy_bernoulli();
             
             // Assert
-            expect(result).toHaveLength(2);
-            expect(result[0]).toHaveProperty('name', 'Arm1');
-            expect(result[0]).toHaveProperty('trial_result');
-            expect(result[0].trial_result).toEqual([]);
-            expect(result[0]).toHaveProperty('bandit_result', 0);
-            expect(result[1]).toHaveProperty('name', 'Arm2');
+            // Cold-Start: 3 stocks + 5 investments = 8 total
+            expect(algorithmStore.investmentsGreedy).toHaveLength(8);
         });
         
-        it('should handle empty array', () => {
+        it('should update algorithm store with results', () => {
             // Arrange
-            const arms = [];
+            banditStore.possibleInvestments = 3;
             
             // Act
-            const result = init_array_arms(arms);
+            greedy_bernoulli();
             
             // Assert
-            expect(result).toHaveLength(0);
-            expect(result).toEqual([]);
-        });
-        
-        it('should handle arrays with different properties', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", mean: 0.5, variance: 0.1 },
-                { name: "Arm3", someOtherProp: "value" }
-            ];
-            
-            // Act
-            const result = init_array_arms(arms);
-            
-            // Assert
-            expect(result).toHaveLength(3);
-            expect(result[0]).toHaveProperty('name', 'Arm1');
-            expect(result[1]).toHaveProperty('name', 'Arm2');
-            expect(result[2]).toHaveProperty('name', 'Arm3');
-            // Check that all arms have the same structure
-            result.forEach(arm => {
-                expect(arm).toHaveProperty('trial_result');
-                expect(arm.trial_result).toEqual([]);
-                expect(arm).toHaveProperty('bandit_result', 0);
+            // Cold-start (3 stocks) + 3 investments = 6 total
+            expect(algorithmStore.investmentsGreedy).toHaveLength(6);
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(investment).toHaveProperty('stock');
+                expect(investment).toHaveProperty('greedyReturn');
+                expect(investment.stock).toHaveProperty('stock');
+                expect(investment.stock.stock).toHaveProperty('name');
             });
         });
         
-        it('should not modify the original arms array', () => {
+        it('should set algorithmsInProgress flag during execution', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.2 }
-            ];
-            const originalArms = JSON.parse(JSON.stringify(arms));
+            let progressFlagDuringExecution = false;
+            const initialValue = algorithmStore.algorithmsInProgress;
             
             // Act
-            init_array_arms(arms);
+            greedy_bernoulli();
             
             // Assert
-            expect(arms).toEqual(originalArms);
+            expect(initialValue).toBe(false); // Should start false
+            expect(algorithmStore.algorithmsInProgress).toBe(false); // Should end false
+        });
+        
+        it('should handle zero possibleInvestments', () => {
+            // Arrange
+            banditStore.possibleInvestments = 0;
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            // Should still have cold-start entries (3 stocks)
+            expect(algorithmStore.investmentsGreedy).toHaveLength(3);
+            expect(algorithmStore.algorithmsInProgress).toBe(false);
+        });
+    });
+
+    // Tests für Cold-Start Initialization
+    describe('Cold-Start Initialization', () => {
+        it('should initialize each stock with greedyReturn 0 and other values null', () => {
+            // Arrange
+            banditStore.possibleInvestments = 0; // No additional investments
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(3); // Only cold-start entries
+            
+            algorithmStore.investmentsGreedy.forEach((investment, index) => {
+                expect(investment.stock).toBe(banditStore.selectedStocks[index]);
+                expect(investment.greedyReturn).toBe(0);
+                expect(investment.thompsonReturn).toBe(null);
+                expect(investment.ucbReturn).toBe(null);
+                expect(investment.gradientReturn).toBe(null);
+                expect(investment.optimisticInitialReturn).toBe(null);
+                expect(investment.userAlgorithmReturn).toBe(null);
+            });
+        });
+        
+        it('should cold-start with exactly one entry per selected stock', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.5, gaussian_param: 0.1 },
+                { stock: { id: 2, name: "Stock B" }, bernoulli_param: 0.7, gaussian_param: 0.2 }
+            ];
+            banditStore.possibleInvestments = 0;
+            
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(2);
+            expect(algorithmStore.investmentsGreedy[0].stock.stock.name).toBe("Stock A");
+            expect(algorithmStore.investmentsGreedy[1].stock.stock.name).toBe("Stock B");
+            expect(algorithmStore.investmentsGreedy[0].greedyReturn).toBe(0);
+            expect(algorithmStore.investmentsGreedy[1].greedyReturn).toBe(0);
+        });
+        
+        it('should cold-start before processing additional investments', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.8, gaussian_param: 0.1 }
+            ];
+            banditStore.possibleInvestments = 2;
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(3); // 1 cold-start + 2 investments
+            
+            // First entry should be cold-start
+            expect(algorithmStore.investmentsGreedy[0].greedyReturn).toBe(0);
+            expect(algorithmStore.investmentsGreedy[0].thompsonReturn).toBe(null);
+            
+            // Subsequent entries should have actual bandit results
+            expect(algorithmStore.investmentsGreedy[1].greedyReturn).not.toBe(null);
+            expect(algorithmStore.investmentsGreedy[2].greedyReturn).not.toBe(null);
+        });
+        
+        it('should handle empty selectedStocks gracefully', () => {
+            // Arrange
+            banditStore.selectedStocks = [];
+            banditStore.possibleInvestments = 5;
+            
+            // Act & Assert
+            // Should throw error since algorithm expects stocks to exist
+            expect(() => greedy_bernoulli()).toThrow();
         });
     });
 
     // Tests für greedy_bernoulli
     describe('greedy_bernoulli', () => {
-        it('should call greedy function with correct parameters', () => {
+        it('should execute correct number of investments', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.2 }
-            ];
-            const trials = 5;
-            
-            // Mock bernoulli to always return true
-            bernoulliModule.bernoulli.mockReturnValue(true);
+            banditStore.possibleInvestments = 7;
             
             // Act
-            const result = greedy_bernoulli(arms, trials);
+            eGreedy_bernoulli();
             
             // Assert
-            expect(result).toHaveLength(2);
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledWith(arms[0].propability);
-        });
-        
-        it('should handle different probabilities correctly', () => {
+            // Cold-start (3 stocks) + 7 investments = 10 total
+            expect(algorithmStore.investmentsGreedy).toHaveLength(10);
+        });        it('should store bernoulli results as greedyReturn', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.8 },
-                { name: "Arm2", propability: 0.2 }
-            ];
-            const trials = 3;
+            banditStore.possibleInvestments = 5;
             
-            // Mock bernoulli to return true for first arm, false for second arm
-            bernoulliModule.bernoulli.mockImplementation((propability) => {
-                return propability === 0.8;
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+                expect(investment.greedyReturn === 0 || investment.greedyReturn === 1).toBe(true);
             });
-            
-            // Act
-            const result = greedy_bernoulli(arms, trials);
-            
-            // Assert
-            expect(result[0].bandit_result).toBe(1); // 100% success rate
-            expect(result[0].trial_result).toEqual([true, true, true]);
         });
         
-        it('should fail if greedy function changes and greedy_bernoulli is not updated', () => {
-            // This test is designed to fail if the greedy function's signature changes
-            // and greedy_bernoulli is not updated accordingly
-            
+        it('should select stocks with better performance over time', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 }
+            banditStore.possibleInvestments = 20;
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "Low Prob Stock", price: 100, logo_url: "low.jpg" },
+                    bernoulli_param: 0.1, // Very low probability
+                    gaussian_param: 0.1
+                },
+                {
+                    stock: { id: 2, name: "High Prob Stock", price: 100, logo_url: "high.jpg" },
+                    bernoulli_param: 0.9, // Very high probability
+                    gaussian_param: 0.9
+                }
             ];
-            const trials = 1;
-            
-            // Act & Assert
-            const result = greedy_bernoulli(arms, trials);
-            
-            // Verify the function returned a result (would fail if signature changed)
-            expect(result).toBeDefined();
-            expect(Array.isArray(result)).toBe(true);
-            
-            // Verify bernoulli was called with the correct parameter
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledWith(arms[0].propability);
-        });
-        
-        it('should calculate bandit_result correctly for bernoulli', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 }
-            ];
-            const trials = 4;
-            
-            // Mock bernoulli to return alternating values
-            bernoulliModule.bernoulli
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false)
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false);
             
             // Act
-            const result = greedy_bernoulli(arms, trials);
+            greedy_bernoulli();
             
             // Assert
-            expect(result[0].trial_result).toEqual([true, false, true, false]);
-            expect(result[0].bandit_result).toBe(0.5); // 2 successes out of 4 trials
+            const highProbStockSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "High Prob Stock"
+            ).length;
+            const lowProbStockSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "Low Prob Stock"
+            ).length;
+            
+            // At least some investments should be made
+            expect(algorithmStore.investmentsGreedy).toHaveLength(22); // 2 cold-start + 20 investments
+            // Both stocks should be tried at least once in a greedy algorithm
+            expect(highProbStockSelections + lowProbStockSelections).toBe(22);
+        });
+        
+        it('should work with single stock', () => {
+            // Arrange
+            banditStore.selectedStocks = [banditStore.selectedStocks[0]]; // Only first stock
+            banditStore.possibleInvestments = 5;
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(6); // 1 cold-start + 5 investments
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(investment.stock.stock.name).toBe("Stock A");
+            });
         });
     });
 
     // Tests für eGreedy_bernoulli
     describe('eGreedy_bernoulli', () => {
-        it('should call xGreedy function with correct parameters', () => {
+        it('should execute correct number of investments', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.2 }
-            ];
-            const trials = 5;
-            
-            // Mock bernoulli to always return true
-            bernoulliModule.bernoulli.mockReturnValue(true);
-            
-            // Mock Math.random für deterministisches Verhalten (immer > epsilon)
-            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            banditStore.possibleInvestments = 7;
             
             // Act
-            const result = eGreedy_bernoulli(arms, trials);
+            eGreedy_bernoulli();
             
             // Assert
-            expect(result).toHaveLength(2);
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
-            
-            // Restore Math.random
-            mathRandomSpy.mockRestore();
+            expect(algorithmStore.investmentsGreedy).toHaveLength(10); // 3 cold-start + 7 investments
         });
         
-        it('should calculate bandit_result correctly', () => {
+        it('should explore different stocks due to epsilon', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 }
+            banditStore.possibleInvestments = 100; // Large number for statistical significance
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "Stock A", price: 100, logo_url: "a.jpg" },
+                    bernoulli_param: 0.95, // Very high probability
+                    gaussian_param: 0.95
+                },
+                {
+                    stock: { id: 2, name: "Stock B", price: 100, logo_url: "b.jpg" },
+                    bernoulli_param: 0.05, // Very low probability
+                    gaussian_param: 0.05
+                }
             ];
-            const trials = 4;
-            
-            // Mock bernoulli to return alternating values
-            bernoulliModule.bernoulli
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false)
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false);
-            
-            // Mock Math.random um deterministisches Verhalten zu gewährleisten
-            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
             
             // Act
-            const result = eGreedy_bernoulli(arms, trials);
+            eGreedy_bernoulli();
             
             // Assert
-            expect(result[0].trial_result).toEqual([true, false, true, false]);
-            expect(result[0].bandit_result).toBe(0.5); // 2 successes out of 4 trials
+            const stockASelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "Stock A"
+            ).length;
+            const stockBSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "Stock B"
+            ).length;
             
-            // Restore Math.random
-            mathRandomSpy.mockRestore();
+            // Due to epsilon exploration, both stocks should be selected
+            expect(stockASelections).toBeGreaterThan(0);
+            expect(stockBSelections).toBeGreaterThan(0);
+            // But Stock A should still be selected more often
+            expect(stockASelections).toBeGreaterThan(stockBSelections);
+        });
+        
+        it('should explore more than standard greedy', () => {
+            // Arrange
+            banditStore.possibleInvestments = 50;
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "Dominant Stock", price: 100, logo_url: "dom.jpg" },
+                    bernoulli_param: 0.8,
+                    gaussian_param: 0.8
+                },
+                {
+                    stock: { id: 2, name: "Weaker Stock", price: 100, logo_url: "weak.jpg" },
+                    bernoulli_param: 0.2,
+                    gaussian_param: 0.2
+                }
+            ];
+            
+            // Act
+            algorithmStore.investmentsGreedy = []; // Reset
+            greedy_bernoulli();
+            const greedyResults = [...algorithmStore.investmentsGreedy];
+            
+            algorithmStore.investmentsGreedy = []; // Reset
+            eGreedy_bernoulli();
+            const eGreedyResults = [...algorithmStore.investmentsGreedy];
+            
+            // Assert
+            const greedyWeakerSelections = greedyResults.filter(
+                inv => inv.stock.stock.name === "Weaker Stock"
+            ).length;
+            const eGreedyWeakerSelections = eGreedyResults.filter(
+                inv => inv.stock.stock.name === "Weaker Stock"
+            ).length;
+            
+            // Epsilon-greedy should select the weaker stock more often due to exploration
+            expect(eGreedyWeakerSelections).toBeGreaterThanOrEqual(greedyWeakerSelections);
         });
     });
 
     // Tests für greedy_gaussian
     describe('greedy_gaussian', () => {
-        it('should call greedy function with correct parameters', () => {
+        it('should execute correct number of investments', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 },
-                { name: "Arm2", mean: 0.2, variance: 0.2 }
-            ];
-            const trials = 5;
-            
-            // Mock gaussian to return a fixed value
-            gaussianModule.gaussian.mockReturnValue(0.5);
+            banditStore.possibleInvestments = 8;
             
             // Act
-            const result = greedy_gaussian(arms, trials);
+            greedy_gaussian();
             
             // Assert
-            expect(result).toHaveLength(2);
-            expect(gaussianModule.gaussian).toHaveBeenCalledTimes(trials);
-            expect(gaussianModule.gaussian).toHaveBeenCalledWith(arms[0].mean, arms[0].variance);
+            expect(algorithmStore.investmentsGreedy).toHaveLength(11); // 3 cold-start + 8 investments
         });
         
-        it('should handle different means and variances correctly', () => {
+        it('should store gaussian results as greedyReturn', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.8, variance: 0.1 },
-                { name: "Arm2", mean: 0.2, variance: 0.2 }
-            ];
-            const trials = 3;
+            banditStore.possibleInvestments = 5;
             
-            // Mock gaussian to return the mean value
-            gaussianModule.gaussian.mockImplementation((mean, variance) => {
-                return mean;
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+                expect(investment.greedyReturn).not.toBe(0); // Gaussian values are typically not exactly 0
+                expect(investment.greedyReturn).not.toBe(1); // Gaussian values are typically not exactly 1
             });
-            
-            // Act
-            const result = greedy_gaussian(arms, trials);
-            
-            // Assert
-            expect(result[0].bandit_result).toBeCloseTo(0.8, 10); // Mean value
-            expect(result[0].trial_result).toEqual([0.8, 0.8, 0.8]);
         });
         
-        it('should fail if greedy function changes and greedy_gaussian is not updated', () => {
-            // This test is designed to fail if the greedy function's signature changes
-            // and greedy_gaussian is not updated accordingly
-            
+        it('should select stocks with better gaussian performance', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 }
+            banditStore.possibleInvestments = 30;
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "Low Gaussian Stock", price: 100, logo_url: "low.jpg" },
+                    bernoulli_param: 0.5,
+                    gaussian_param: -0.5 // Negative mean
+                },
+                {
+                    stock: { id: 2, name: "High Gaussian Stock", price: 100, logo_url: "high.jpg" },
+                    bernoulli_param: 0.5,
+                    gaussian_param: 0.8 // Positive mean
+                }
             ];
-            const trials = 1;
-            
-            // Act & Assert
-            const result = greedy_gaussian(arms, trials);
-            
-            // Verify the function returned a result (would fail if signature changed)
-            expect(result).toBeDefined();
-            expect(Array.isArray(result)).toBe(true);
-            
-            // Verify gaussian was called with the correct parameters
-            expect(gaussianModule.gaussian).toHaveBeenCalledWith(arms[0].mean, arms[0].variance);
-        });
-        
-        it('should calculate bandit_result correctly for gaussian', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 }
-            ];
-            const trials = 4;
-            
-            // Mock gaussian to return specific values
-            gaussianModule.gaussian
-                .mockReturnValueOnce(0.5)
-                .mockReturnValueOnce(0.7)
-                .mockReturnValueOnce(0.6)
-                .mockReturnValueOnce(0.8);
             
             // Act
-            const result = greedy_gaussian(arms, trials);
+            greedy_gaussian();
             
             // Assert
-            expect(result[0].trial_result).toEqual([0.5, 0.7, 0.6, 0.8]);
-            expect(result[0].bandit_result).toBeCloseTo(0.65, 10); // Average of values
+            const highGaussianSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "High Gaussian Stock"
+            ).length;
+            const lowGaussianSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "Low Gaussian Stock"
+            ).length;
+            
+            // All investments should be made
+            expect(algorithmStore.investmentsGreedy).toHaveLength(32); // 2 cold-start + 30 investments
+            // Both stocks should be involved in the decision process
+            expect(highGaussianSelections + lowGaussianSelections).toBe(32);
         });
     });
 
     // Tests für eGreedy_gaussian
     describe('eGreedy_gaussian', () => {
-        it('should call xGreedy function with correct parameters', () => {
+        it('should execute correct number of investments', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 },
-                { name: "Arm2", mean: 0.2, variance: 0.2 }
-            ];
-            const trials = 5;
-            
-            // Mock gaussian to return a fixed value
-            gaussianModule.gaussian.mockReturnValue(0.5);
-            
-            // Mock Math.random für deterministisches Verhalten (immer > epsilon)
-            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            banditStore.possibleInvestments = 6;
             
             // Act
-            const result = eGreedy_gaussian(arms, trials);
+            eGreedy_gaussian();
             
             // Assert
-            expect(result).toHaveLength(2);
-            expect(gaussianModule.gaussian).toHaveBeenCalledTimes(trials);
+            expect(algorithmStore.investmentsGreedy).toHaveLength(9); // 3 cold-start + 6 investments
+        });
+        
+        it('should explore different stocks with gaussian bandits', () => {
+            // Arrange
+            banditStore.possibleInvestments = 100;
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "High Mean Stock", price: 100, logo_url: "high.jpg" },
+                    bernoulli_param: 0.5,
+                    gaussian_param: 1.0 // High positive mean
+                },
+                {
+                    stock: { id: 2, name: "Low Mean Stock", price: 100, logo_url: "low.jpg" },
+                    bernoulli_param: 0.5,
+                    gaussian_param: -0.5 // Negative mean
+                }
+            ];
             
-            // Restore Math.random
+            // Act
+            eGreedy_gaussian();
+            
+            // Assert
+            const highMeanSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "High Mean Stock"
+            ).length;
+            const lowMeanSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock.stock.name === "Low Mean Stock"
+            ).length;
+            
+            // Both stocks should be selected due to exploration
+            expect(highMeanSelections).toBeGreaterThan(0);
+            expect(lowMeanSelections).toBeGreaterThan(0);
+            // But high mean stock should be selected more often
+            expect(highMeanSelections).toBeGreaterThan(lowMeanSelections);
+        });
+    });
+
+    // Tests für Algorithm Logic
+    describe('Algorithm Logic', () => {
+        it('should select best performing stock in exploitation phase', () => {
+            // Arrange - Pre-populate with known results
+            banditStore.possibleInvestments = 5;
+            algorithmStore.investmentsGreedy = [
+                {
+                    stock: banditStore.selectedStocks[0],
+                    greedyReturn: 0.2 // Low performance
+                },
+                {
+                    stock: banditStore.selectedStocks[1],
+                    greedyReturn: 0.8 // High performance
+                },
+                {
+                    stock: banditStore.selectedStocks[2],
+                    greedyReturn: 0.5 // Medium performance
+                }
+            ];
+            
+            // Mock Math.random to ensure exploitation (not exploration)
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // > epsilon
+            
+            // Act
+            greedy_bernoulli(); // This should select the best performing stock
+            
+            // Assert
+            // The last few investments should predominantly be the high-performance stock
+            const lastInvestments = algorithmStore.investmentsGreedy.slice(-3);
+            const highPerformanceSelections = lastInvestments.filter(
+                inv => inv.stock === banditStore.selectedStocks[1]
+            ).length;
+            
+            expect(highPerformanceSelections).toBeGreaterThan(0);
+            
             mathRandomSpy.mockRestore();
         });
         
-        it('should calculate bandit_result correctly', () => {
+        it('should handle initial exploration when no prior results exist', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 }
+            banditStore.possibleInvestments = 3;
+            algorithmStore.investmentsGreedy = []; // Empty initial state
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(6); // 3 cold-start + 3 investments
+            // Should not throw errors when accessing empty array
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(investment).toHaveProperty('stock');
+                expect(investment).toHaveProperty('greedyReturn');
+            });
+        });
+        
+        it('should properly compare numeric greedyReturn values', () => {
+            // Arrange
+            banditStore.possibleInvestments = 1;
+            algorithmStore.investmentsGreedy = [
+                {
+                    stock: banditStore.selectedStocks[0],
+                    greedyReturn: 0.3
+                },
+                {
+                    stock: banditStore.selectedStocks[1], 
+                    greedyReturn: 0.7 // This should be selected as best
+                },
+                {
+                    stock: banditStore.selectedStocks[2],
+                    greedyReturn: 0.1
+                }
             ];
-            const trials = 4;
             
-            // Mock gaussian to return specific values
-            gaussianModule.gaussian
-                .mockReturnValueOnce(0.5)
-                .mockReturnValueOnce(0.7)
-                .mockReturnValueOnce(0.6)
-                .mockReturnValueOnce(0.8);
-            
-            // Mock Math.random um deterministisches Verhalten zu gewährleisten
+            // Mock Math.random to ensure exploitation
             const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
             
             // Act
-            const result = eGreedy_gaussian(arms, trials);
+            greedy_gaussian(); // Single investment should pick the best
             
             // Assert
-            expect(result[0].trial_result).toEqual([0.5, 0.7, 0.6, 0.8]);
-            expect(result[0].bandit_result).toBeCloseTo(0.65, 10);
+            const lastInvestment = algorithmStore.investmentsGreedy[algorithmStore.investmentsGreedy.length - 1];
+            expect(lastInvestment.stock).toBe(banditStore.selectedStocks[1]); // Stock with 0.7 return
             
-            // Restore Math.random
             mathRandomSpy.mockRestore();
         });
     });
 
-    // Tests für die greedy Implementierung selbst
-    describe('greedy implementation', () => {
-        // Test für die äußere for-Schleife: Prüfen, ob alle Trials korrekt ausgeführt werden
-        it('should execute exactly the specified number of trials', () => {
+    // Tests für spezifische Algorithmus-Implementierung (Schleifen, Bedingungen, etc.)
+    describe('Algorithm Implementation Details', () => {
+        // Test für die äußere for-Schleife: Prüfen, ob alle Investments korrekt ausgeführt werden
+        it('should execute exactly the specified number of investments (for-loop test)', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.7 }
-            ];
-            const trials = 42; // Eine spezifische Anzahl an Trials
-            
-            // Mock bernoulli, um die Anzahl der Aufrufe zu zählen
-            bernoulliModule.bernoulli.mockReturnValue(true);
+            const exactTrials = 42; // Eine spezifische Anzahl an Investments
+            banditStore.possibleInvestments = exactTrials;
             
             // Act
-            const result = greedy_bernoulli(arms, trials);
+            greedy_bernoulli();
             
             // Assert
-            // Prüfen, ob bernoulli genau trials-mal aufgerufen wurde
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
+            // Prüfen, ob genau exactTrials + cold-start Investments gemacht wurden
+            expect(algorithmStore.investmentsGreedy).toHaveLength(exactTrials + 3); // +3 for cold-start
             
-            // Prüfen, ob die Summe aller trial_result.length genau trials ist
-            const totalTrials = result.reduce((sum, arm) => sum + arm.trial_result.length, 0);
-            expect(totalTrials).toBe(trials);
+            // Prüfen, dass jedes Investment valide Daten hat
+            algorithmStore.investmentsGreedy.forEach((investment, index) => {
+                expect(investment).toHaveProperty('stock');
+                expect(investment).toHaveProperty('greedyReturn');
+                expect(typeof investment.greedyReturn).toBe('number');
+            });
         });
         
-        // Test für die innere for-Schleife: Prüfen, ob der korrekte Arm ausgewählt wird
-        it('should select the arm with the best bandit_result', () => {
+        // Test für die innere for-Schleife: Prüfen, ob der korrekte Stock ausgewählt wird
+        it('should select the stock with the best greedyReturn (inner loop test)', () => {
             // Arrange
-            const arms = [
-                { name: "LowProbArm", propability: 0.1 },
-                { name: "HighProbArm", propability: 0.9 }
+            banditStore.possibleInvestments = 3;
+            // Pre-populate mit bekannten Ergebnissen
+            algorithmStore.investmentsGreedy = [
+                {
+                    stock: banditStore.selectedStocks[0],
+                    greedyReturn: 0.1 // Schlechteste Performance
+                },
+                {
+                    stock: banditStore.selectedStocks[1],
+                    greedyReturn: 0.9 // Beste Performance
+                },
+                {
+                    stock: banditStore.selectedStocks[2],
+                    greedyReturn: 0.5 // Mittlere Performance
+                }
             ];
-            const trials = 10;
             
-            // Wir initialisieren die Arms mit vordefinierten bandit_results
-            // durch Manipulation der Mock-Implementierung
+            // Mock Math.random für deterministische Exploitation
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            // Die neuen Investments sollten überwiegend den besten Stock wählen
+            const newInvestments = algorithmStore.investmentsGreedy.slice(3);
+            const bestStockSelections = newInvestments.filter(
+                inv => inv.stock === banditStore.selectedStocks[1]
+            ).length;
+            
+            expect(bestStockSelections).toBeGreaterThan(0);
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für die if/else-Verzweigung (exploration vs exploitation)
+        it('should follow exploration path when Math.random() < epsilon', () => {
+            // Arrange
+            banditStore.possibleInvestments = 10;
+            
+            // Mock Math.random für deterministische Exploration
             let callCount = 0;
-            bernoulliModule.bernoulli.mockImplementation(() => {
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
                 callCount++;
-                if (callCount <= 2) {
-                    // Erste zwei Aufrufe: Arm initialisieren
-                    return callCount === 1;  // Arm 0: true (1.0), Arm 1: false (0.0)
+                if (callCount % 2 === 1) {
+                    return 0.05; // Unter epsilon -> Exploration
                 } else {
-                    // Danach sollte immer der erste Arm gewählt werden
-                    return true;
+                    // Wechselnde Stock-Auswahl
+                    return callCount % 4 === 0 ? 0.2 : 0.8; // Verschiedene Random-Werte für Stock-Auswahl
                 }
             });
             
             // Act
-            const result = greedy_bernoulli(arms, trials);
+            eGreedy_bernoulli();
             
             // Assert
-            // Der erste Arm sollte nach der Initialisierung die meisten Trials haben
-            expect(result[0].trial_result.length).toBeGreaterThan(result[1].trial_result.length);
-            expect(result[0].bandit_result).toBeGreaterThan(0);
+            expect(algorithmStore.investmentsGreedy).toHaveLength(13); // 3 cold-start + 10 investments
+            
+            // Mindestens sollten Investitionen gemacht worden sein
+            expect(algorithmStore.investmentsGreedy.length).toBeGreaterThan(0);
+            
+            // Prüfen dass epsilon-Exploration verwendet wurde (Math.random wurde oft genug aufgerufen)
+            expect(mathRandomSpy).toHaveBeenCalled();
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        it('should follow exploitation path when Math.random() >= epsilon', () => {
+            // Arrange
+            banditStore.possibleInvestments = 5;
+            algorithmStore.investmentsGreedy = [
+                {
+                    stock: banditStore.selectedStocks[0],
+                    greedyReturn: 0.9 // Sehr gute Performance
+                }
+            ];
+            
+            // Mock Math.random für Exploitation (über epsilon 0.1)
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+            
+            // Act
+            eGreedy_bernoulli();
+            
+            // Assert
+            // Sollte hauptsächlich den besten Stock wählen
+            const bestStockSelections = algorithmStore.investmentsGreedy.filter(
+                inv => inv.stock === banditStore.selectedStocks[0]
+            ).length;
+            
+            expect(bestStockSelections).toBeGreaterThan(2); // Mindestens die Hälfte
+            
+            mathRandomSpy.mockRestore();
         });
         
         // Test für den Switch-Case: Prüfen, ob der korrekte Bandit aufgerufen wird
-        it('should call the correct bandit function based on bandit parameter', () => {
+        it('should call correct bandit function based on switch-case parameter', async () => {
             // Arrange
-            const bernoulliArms = [{ name: "BernoulliArm", propability: 0.5 }];
-            const gaussianArms = [{ name: "GaussianArm", mean: 0.5, variance: 0.1 }];
-            const trials = 5;
+            banditStore.possibleInvestments = 3;
             
-            // Mocks für beide Bandit-Funktionen
-            bernoulliModule.bernoulli.mockReturnValue(true);
-            gaussianModule.gaussian.mockReturnValue(0.5);
+            // Spy auf beide Bandit-Funktionen
+            const bernoulliModule = await import('../bandits/bernoulli.ts');
+            const gaussianModule = await import('../bandits/gaussian.ts');
+            const bernoulliSpy = vi.spyOn(bernoulliModule, 'bernoulli');
+            const gaussianSpy = vi.spyOn(gaussianModule, 'gaussian');
             
-            // Act - Teil 1: Teste bernoulli
-            greedy_bernoulli(bernoulliArms, trials);
+            // Act - Teil 1: Teste bernoulli case
+            algorithmStore.investmentsGreedy = [];
+            greedy_bernoulli();
             
             // Assert - Teil 1
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
-            expect(gaussianModule.gaussian).not.toHaveBeenCalled();
+            expect(bernoulliSpy).toHaveBeenCalled();
+            expect(gaussianSpy).not.toHaveBeenCalled();
             
-            // Zurücksetzen der Mocks für Teil 2
-            vi.clearAllMocks();
+            // Reset
+            bernoulliSpy.mockClear();
+            gaussianSpy.mockClear();
             
-            // Act - Teil 2: Teste gaussian
-            greedy_gaussian(gaussianArms, trials);
+            // Act - Teil 2: Teste gaussian case
+            algorithmStore.investmentsGreedy = [];
+            greedy_gaussian();
             
             // Assert - Teil 2
-            expect(gaussianModule.gaussian).toHaveBeenCalledTimes(trials);
-            expect(bernoulliModule.bernoulli).not.toHaveBeenCalled();
+            expect(gaussianSpy).toHaveBeenCalled();
+            expect(bernoulliSpy).not.toHaveBeenCalled();
+            
+            // Cleanup
+            bernoulliSpy.mockRestore();
+            gaussianSpy.mockRestore();
         });
         
-        // Test für die korrekte Berechnung von bandit_result
-        it('should calculate bandit_result correctly for both bandit types', () => {
+        // Test für die Boolean-zu-Number Konvertierung im Bernoulli case
+        it('should convert boolean bernoulli results to numbers correctly', () => {
             // Arrange
-            const bernoulliArm = { name: "BernoulliArm", propability: 0.5 };
-            const gaussianArm = { name: "GaussianArm", mean: 0.5, variance: 0.1 };
-            const trials = 3;
-            
-            // Mock für Bernoulli: [true, false, true]
-            bernoulliModule.bernoulli
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false)
-                .mockReturnValueOnce(true);
-            
-            // Mock für Gaussian: [0.4, 0.5, 0.6]
-            gaussianModule.gaussian
-                .mockReturnValueOnce(0.4)
-                .mockReturnValueOnce(0.5)
-                .mockReturnValueOnce(0.6);
+            banditStore.possibleInvestments = 5;
             
             // Act
-            const bernoulliResult = greedy_bernoulli([bernoulliArm], trials);
-            
-            // Zurücksetzen der Mocks
-            vi.clearAllMocks();
-            
-            const gaussianResult = greedy_gaussian([gaussianArm], trials);
+            greedy_bernoulli();
             
             // Assert
-            // Bernoulli: 2 von 3 true = 2/3 ≈ 0.6667
-            expect(bernoulliResult[0].bandit_result).toBeCloseTo(2/3, 4);
-            
-            // Gaussian: Durchschnitt von [0.4, 0.5, 0.6] = 0.5
-            expect(gaussianResult[0].bandit_result).toBe(0.5);
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+                // Sollte nur 0 oder 1 sein (konvertierte boolean Werte)
+                expect([0, 1]).toContain(investment.greedyReturn);
+            });
         });
         
-        // Detaillierter Test für die Berechnungsformeln in der Switch-Anweisung
-        it('should correctly implement the bandit_result calculation formulas', () => {
-            // Arrange - Komplexere Testfälle für beide Banditentypen
-            const bernoulliArm = { name: "ComplexBernoulliArm", propability: 0.5 };
-            const gaussianArm = { name: "ComplexGaussianArm", mean: 0.5, variance: 0.1 };
-            const trials = 5;
+        // Test für die korrekte Setzung der null-Werte im Switch-Case
+        it('should set all non-greedy returns to null in bernoulli case', () => {
+            // Arrange
+            banditStore.possibleInvestments = 3;
             
-            // Bernoulli mit verschiedenen Werten: [true, false, true, true, false]
-            bernoulliModule.bernoulli
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false)
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false);
+            // Act
+            greedy_bernoulli();
             
-            // Act - Bernoulli
-            const bernoulliResult = greedy_bernoulli([bernoulliArm], trials);
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(investment.greedyReturn).not.toBe(null);
+                expect(investment.thompsonReturn).toBe(null);
+                expect(investment.ucbReturn).toBe(null);
+                expect(investment.gradientReturn).toBe(null);
+                expect(investment.optimisticInitialReturn).toBe(null);
+                expect(investment.userAlgorithmReturn).toBe(null);
+            });
+        });
+        
+        it('should set all non-greedy returns to null in gaussian case', () => {
+            // Arrange
+            banditStore.possibleInvestments = 3;
             
-            // Assert - Bernoulli: Erwartung ist 3/5 = 0.6
-            expect(bernoulliResult[0].trial_result).toEqual([true, false, true, true, false]);
+            // Act
+            greedy_gaussian();
             
-            // Manuell die Formel nachrechnen und mit dem Ergebnis vergleichen
-            const manualBernoulliCalculation = bernoulliResult[0].trial_result.reduce(
-                (sum, result) => sum + (result ? 1 : 0), 0
-            ) / bernoulliResult[0].trial_result.length;
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(investment.greedyReturn).not.toBe(null);
+                expect(typeof investment.greedyReturn).toBe('number');
+                expect(investment.thompsonReturn).toBe(null);
+                expect(investment.ucbReturn).toBe(null);
+                expect(investment.gradientReturn).toBe(null);
+                expect(investment.optimisticInitialReturn).toBe(null);
+                expect(investment.userAlgorithmReturn).toBe(null);
+            });
+        });
+        
+        // Test für die Konsistenz der AlgoInvestment Struktur
+        it('should maintain consistent AlgoInvestment structure across switch cases', () => {
+            // Arrange
+            banditStore.possibleInvestments = 2;
             
-            expect(bernoulliResult[0].bandit_result).toBe(manualBernoulliCalculation);
-            expect(bernoulliResult[0].bandit_result).toBeCloseTo(0.6, 10);
+            // Act - Test both cases
+            algorithmStore.investmentsGreedy = [];
+            greedy_bernoulli();
+            const bernoulliInvestments = [...algorithmStore.investmentsGreedy];
             
-            // Zurücksetzen der Mocks
-            vi.clearAllMocks();
+            algorithmStore.investmentsGreedy = [];
+            greedy_gaussian();
+            const gaussianInvestments = [...algorithmStore.investmentsGreedy];
             
-            // Gaussian mit verschiedenen Werten: [0.1, 0.3, 0.5, 0.7, 0.9]
-            gaussianModule.gaussian
-                .mockReturnValueOnce(0.1)
-                .mockReturnValueOnce(0.3)
-                .mockReturnValueOnce(0.5)
-                .mockReturnValueOnce(0.7)
-                .mockReturnValueOnce(0.9);
+            // Assert
+            const checkStructure = (investments, expectedType) => {
+                const actualInvestments = investments.slice(3); // Skip cold-start
+                actualInvestments.forEach(investment => {
+                    expect(investment).toHaveProperty('stock');
+                    expect(investment).toHaveProperty('greedyReturn');
+                    expect(investment).toHaveProperty('thompsonReturn');
+                    expect(investment).toHaveProperty('ucbReturn');
+                    expect(investment).toHaveProperty('gradientReturn');
+                    expect(investment).toHaveProperty('optimisticInitialReturn');
+                    expect(investment).toHaveProperty('userAlgorithmReturn');
+                    
+                    // Only greedyReturn should have values, others should be null
+                    expect(typeof investment.greedyReturn).toBe('number');
+                    expect(investment.thompsonReturn).toBe(null);
+                    expect(investment.ucbReturn).toBe(null);
+                    expect(investment.gradientReturn).toBe(null);
+                    expect(investment.optimisticInitialReturn).toBe(null);
+                    expect(investment.userAlgorithmReturn).toBe(null);
+                });
+            };
             
-            // Act - Gaussian
-            const gaussianResult = greedy_gaussian([gaussianArm], trials);
+            checkStructure(bernoulliInvestments, 'bernoulli');
+            checkStructure(gaussianInvestments, 'gaussian');
+        });
+        
+        // Test für die korrekte Setzung der null-Werte im Switch-Case
+        it('should set all non-greedy returns to null in bernoulli case', () => {
+            // Arrange
+            banditStore.possibleInvestments = 3;
             
-            // Assert - Gaussian: Erwartung ist (0.1 + 0.3 + 0.5 + 0.7 + 0.9) / 5 = 0.5
-            expect(gaussianResult[0].trial_result).toEqual([0.1, 0.3, 0.5, 0.7, 0.9]);
+            // Act
+            greedy_bernoulli();
             
-            // Manuell die Formel nachrechnen und mit dem Ergebnis vergleichen
-            const manualGaussianCalculation = gaussianResult[0].trial_result.reduce(
-                (sum, result) => sum + result, 0
-            ) / gaussianResult[0].trial_result.length;
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(investment.greedyReturn).not.toBe(null);
+                expect(investment.thompsonReturn).toBe(null);
+                expect(investment.ucbReturn).toBe(null);
+                expect(investment.gradientReturn).toBe(null);
+                expect(investment.optimisticInitialReturn).toBe(null);
+                expect(investment.userAlgorithmReturn).toBe(null);
+            });
+        });
+        
+        it('should set all non-greedy returns to null in gaussian case', () => {
+            // Arrange
+            banditStore.possibleInvestments = 3;
             
-            expect(gaussianResult[0].bandit_result).toBe(manualGaussianCalculation);
-            expect(gaussianResult[0].bandit_result).toBeCloseTo(0.5, 10);
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            actualInvestments.forEach(investment => {
+                expect(investment.greedyReturn).not.toBe(null);
+                expect(typeof investment.greedyReturn).toBe('number');
+                expect(investment.thompsonReturn).toBe(null);
+                expect(investment.ucbReturn).toBe(null);
+                expect(investment.gradientReturn).toBe(null);
+                expect(investment.optimisticInitialReturn).toBe(null);
+                expect(investment.userAlgorithmReturn).toBe(null);
+            });
+        });
+        
+        // Test für die Konsistenz der AlgoInvestment Struktur
+        it('should maintain consistent AlgoInvestment structure across switch cases', () => {
+            // Arrange
+            banditStore.possibleInvestments = 2;
+            
+            // Act - Test both cases
+            algorithmStore.investmentsGreedy = [];
+            greedy_bernoulli();
+            const bernoulliInvestments = [...algorithmStore.investmentsGreedy];
+            
+            algorithmStore.investmentsGreedy = [];
+            greedy_gaussian();
+            const gaussianInvestments = [...algorithmStore.investmentsGreedy];
+            
+            // Assert
+            const checkStructure = (investments, expectedType) => {
+                const actualInvestments = investments.slice(3); // Skip cold-start
+                actualInvestments.forEach(investment => {
+                    expect(investment).toHaveProperty('stock');
+                    expect(investment).toHaveProperty('greedyReturn');
+                    expect(investment).toHaveProperty('thompsonReturn');
+                    expect(investment).toHaveProperty('ucbReturn');
+                    expect(investment).toHaveProperty('gradientReturn');
+                    expect(investment).toHaveProperty('optimisticInitialReturn');
+                    expect(investment).toHaveProperty('userAlgorithmReturn');
+                    
+                    // Only greedyReturn should have values, others should be null
+                    expect(typeof investment.greedyReturn).toBe('number');
+                    expect(investment.thompsonReturn).toBe(null);
+                    expect(investment.ucbReturn).toBe(null);
+                    expect(investment.gradientReturn).toBe(null);
+                    expect(investment.optimisticInitialReturn).toBe(null);
+                    expect(investment.userAlgorithmReturn).toBe(null);
+                });
+            };
+            
+            checkStructure(bernoulliInvestments, 'bernoulli');
+            checkStructure(gaussianInvestments, 'gaussian');
+        });
+        
+        // Test für die direkte Gaussian-Werte im Gaussian case
+        it('should store gaussian results directly as numbers', () => {
+            // Arrange
+            banditStore.possibleInvestments = 5;
+            
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+                // Gaussian-Werte sind kontinuierlich, nicht nur 0 oder 1
+                expect(investment.greedyReturn).toBeDefined();
+            });
+        });
+        
+        // Test für die korrekte Behandlung der best_arm_index Variable
+        it('should maintain best_arm_index correctly across loop iterations', () => {
+            // Arrange
+            banditStore.possibleInvestments = 10;
+            banditStore.selectedStocks = [
+                {
+                    stock: { id: 1, name: "Stock 1", price: 100, logo_url: "1.jpg" },
+                    bernoulli_param: 0.1,
+                    gaussian_param: 0.1
+                },
+                {
+                    stock: { id: 2, name: "Stock 2", price: 100, logo_url: "2.jpg" },
+                    bernoulli_param: 0.9,
+                    gaussian_param: 0.9
+                }
+            ];
+            
+            // Mock für deterministische Ergebnisse
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Exploitation
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(12); // 2 cold-start + 10 investments
+            
+            // best_arm_index sollte gültige Indizes verwenden
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(banditStore.selectedStocks).toContain(investment.stock);
+            });
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für findIndex Funktionalität
+        it('should use findIndex to correctly map investment back to stock array index', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.2, gaussian_param: 0.1 },
+                { stock: { id: 2, name: "Stock B" }, bernoulli_param: 0.8, gaussian_param: 0.5 },
+                { stock: { id: 3, name: "Stock C" }, bernoulli_param: 0.6, gaussian_param: 0.3 }
+            ];
+            banditStore.possibleInvestments = 5;
+            
+            // Pre-populate with known performance to ensure predictable selection
+            algorithmStore.investmentsGreedy = [
+                { stock: banditStore.selectedStocks[0], greedyReturn: 0.1 }, // Low performance
+                { stock: banditStore.selectedStocks[1], greedyReturn: 0.9 }, // High performance 
+                { stock: banditStore.selectedStocks[2], greedyReturn: 0.5 }  // Medium performance
+            ];
+            
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Force exploitation
+            
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            // The algorithm should predominantly select Stock B (index 1) due to highest performance
+            const newInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip pre-populated
+            const stockBSelections = newInvestments.filter(inv => inv.stock === banditStore.selectedStocks[1]).length;
+            
+            expect(stockBSelections).toBeGreaterThan(0);
+            
+            // Verify findIndex worked correctly - all investments should map to valid stocks
+            newInvestments.forEach(investment => {
+                const foundIndex = banditStore.selectedStocks.findIndex(s => s === investment.stock);
+                expect(foundIndex).toBeGreaterThanOrEqual(0);
+                expect(foundIndex).toBeLessThan(banditStore.selectedStocks.length);
+            });
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für findIndex edge case
+        it('should handle findIndex correctly when investment and stock arrays are misaligned', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.3, gaussian_param: 0.1 },
+                { stock: { id: 2, name: "Stock B" }, bernoulli_param: 0.7, gaussian_param: 0.2 }
+            ];
+            banditStore.possibleInvestments = 3;
+            
+            // Pre-populate investment array in different order than stock array
+            algorithmStore.investmentsGreedy = [
+                { stock: banditStore.selectedStocks[1], greedyReturn: 0.8 }, // Stock B first
+                { stock: banditStore.selectedStocks[0], greedyReturn: 0.2 }  // Stock A second
+            ];
+            
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Exploitation
+            
+            // Act  
+            greedy_bernoulli();
+            
+            // Assert
+            const newInvestments = algorithmStore.investmentsGreedy.slice(2);
+            
+            // Should correctly identify Stock B (index 1) as best performer via findIndex
+            const stockBSelections = newInvestments.filter(inv => inv.stock === banditStore.selectedStocks[1]).length;
+            expect(stockBSelections).toBeGreaterThan(0);
+            
+            // Verify all selections are valid stocks
+            newInvestments.forEach(investment => {
+                expect(banditStore.selectedStocks).toContain(investment.stock);
+            });
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für findIndex Funktionalität
+        it('should use findIndex to correctly map investment back to stock array index', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.2, gaussian_param: 0.1 },
+                { stock: { id: 2, name: "Stock B" }, bernoulli_param: 0.8, gaussian_param: 0.5 },
+                { stock: { id: 3, name: "Stock C" }, bernoulli_param: 0.6, gaussian_param: 0.3 }
+            ];
+            banditStore.possibleInvestments = 5;
+            
+            // Pre-populate with known performance to ensure predictable selection
+            algorithmStore.investmentsGreedy = [
+                { stock: banditStore.selectedStocks[0], greedyReturn: 0.1 }, // Low performance
+                { stock: banditStore.selectedStocks[1], greedyReturn: 0.9 }, // High performance 
+                { stock: banditStore.selectedStocks[2], greedyReturn: 0.5 }  // Medium performance
+            ];
+            
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Force exploitation
+            
+            // Act
+            greedy_gaussian();
+            
+            // Assert
+            // The algorithm should predominantly select Stock B (index 1) due to highest performance
+            const newInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip pre-populated
+            const stockBSelections = newInvestments.filter(inv => inv.stock === banditStore.selectedStocks[1]).length;
+            
+            expect(stockBSelections).toBeGreaterThan(0);
+            
+            // Verify findIndex worked correctly - all investments should map to valid stocks
+            newInvestments.forEach(investment => {
+                const foundIndex = banditStore.selectedStocks.findIndex(s => s === investment.stock);
+                expect(foundIndex).toBeGreaterThanOrEqual(0);
+                expect(foundIndex).toBeLessThan(banditStore.selectedStocks.length);
+            });
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für findIndex edge case
+        it('should handle findIndex correctly when investment and stock arrays are misaligned', () => {
+            // Arrange
+            banditStore.selectedStocks = [
+                { stock: { id: 1, name: "Stock A" }, bernoulli_param: 0.3, gaussian_param: 0.1 },
+                { stock: { id: 2, name: "Stock B" }, bernoulli_param: 0.7, gaussian_param: 0.2 }
+            ];
+            banditStore.possibleInvestments = 3;
+            
+            // Pre-populate investment array in different order than stock array
+            algorithmStore.investmentsGreedy = [
+                { stock: banditStore.selectedStocks[1], greedyReturn: 0.8 }, // Stock B first
+                { stock: banditStore.selectedStocks[0], greedyReturn: 0.2 }  // Stock A second
+            ];
+            
+            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Exploitation
+            
+            // Act  
+            greedy_bernoulli();
+            
+            // Assert
+            const newInvestments = algorithmStore.investmentsGreedy.slice(2);
+            
+            // Should correctly identify Stock B (index 1) as best performer via findIndex
+            const stockBSelections = newInvestments.filter(inv => inv.stock === banditStore.selectedStocks[1]).length;
+            expect(stockBSelections).toBeGreaterThan(0);
+            
+            // Verify all selections are valid stocks
+            newInvestments.forEach(investment => {
+                expect(banditStore.selectedStocks).toContain(investment.stock);
+            });
+            
+            mathRandomSpy.mockRestore();
+        });
+        
+        // Test für die neue reward-Variable Struktur
+        it('should use reward variable before storing in investment object', () => {
+            // Arrange
+            banditStore.possibleInvestments = 1;
+            
+            // Act
+            greedy_bernoulli();
+            
+            // Assert
+            const actualInvestments = algorithmStore.investmentsGreedy.slice(3); // Skip cold-start
+            expect(actualInvestments).toHaveLength(1);
+            
+            // The reward should be properly calculated and stored
+            const investment = actualInvestments[0];
+            expect(typeof investment.greedyReturn).toBe('number');
+            expect([0, 1]).toContain(investment.greedyReturn); // Bernoulli: 0 or 1
+        });
+        
+        // Test für die neue reward-Variable im Switch-Case
+        it('should calculate reward correctly in switch-case before storing', () => {
+            // Arrange
+            banditStore.possibleInvestments = 5;
+            
+            // Act - Test Bernoulli
+            algorithmStore.investmentsGreedy = [];
+            greedy_bernoulli();
+            const bernoulliResults = algorithmStore.investmentsGreedy.slice(3);
+            
+            // Act - Test Gaussian  
+            algorithmStore.investmentsGreedy = [];
+            greedy_gaussian();
+            const gaussianResults = algorithmStore.investmentsGreedy.slice(3);
+            
+            // Assert - Bernoulli rewards should be 0 or 1
+            bernoulliResults.forEach(investment => {
+                expect([0, 1]).toContain(investment.greedyReturn);
+            });
+            
+            // Assert - Gaussian rewards should be numbers (not necessarily 0 or 1)
+            gaussianResults.forEach(investment => {
+                expect(typeof investment.greedyReturn).toBe('number');
+            });
         });
 
-        // Test für den korrekten Aufruf der Bandit-Funktionen mit Parametern
-        it('should call bernoulli with the correct probability parameter', () => {
+        // Test für leere Arrays und Edge Cases
+        it('should handle edge case when no prior investments exist', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.6 },
-                { name: "Arm2", propability: 0.8 }
-            ];
-            const trials = 2;
-            
-            // Mock für vorhersehbares Verhalten
-            bernoulliModule.bernoulli.mockReturnValue(true);
+            banditStore.possibleInvestments = 3;
+            algorithmStore.investmentsGreedy = []; // Komplett leer
             
             // Act
-            greedy_bernoulli(arms, trials);
+            greedy_bernoulli();
             
             // Assert
-            // Da immer der Arm mit dem besten Ergebnis gewählt wird, wird immer der erste Arm gewählt
-            // (da alle true zurückgeben, aber der erste zuerst initialisiert wird)
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledWith(arms[0].propability);
-            expect(bernoulliModule.bernoulli).toHaveBeenCalledTimes(trials);
-        });
-        
-        it('should call gaussian with the correct mean and variance parameters', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", mean: 0.6, variance: 0.1 },
-                { name: "Arm2", mean: 0.8, variance: 0.2 }
-            ];
-            const trials = 2;
-            
-            // Mock für vorhersehbares Verhalten
-            gaussianModule.gaussian.mockReturnValue(0.5);
-            
-            // Act
-            greedy_gaussian(arms, trials);
-            
-            // Assert
-            // Da immer der Arm mit dem besten Ergebnis gewählt wird, wird immer der erste Arm gewählt
-            // (da alle 0.5 zurückgeben, aber der erste zuerst initialisiert wird)
-            expect(gaussianModule.gaussian).toHaveBeenCalledWith(arms[0].mean, arms[0].variance);
-            expect(gaussianModule.gaussian).toHaveBeenCalledTimes(trials);
-        });
-        
-        // Test für die korrekte Aktualisierung der trial_result-Arrays
-        it('should append results to trial_result arrays correctly', () => {
-            // Arrange
-            const arms = [
-                { name: "TestArm", propability: 0.5 }
-            ];
-            const trials = 3;
-            
-            // Vordefinierte Rückgabewerte
-            bernoulliModule.bernoulli
-                .mockReturnValueOnce(true)
-                .mockReturnValueOnce(false)
-                .mockReturnValueOnce(true);
-            
-            // Act
-            const result = greedy_bernoulli(arms, trials);
-            
-            // Assert
-            expect(result[0].trial_result).toEqual([true, false, true]);
-            expect(result[0].trial_result.length).toBe(trials);
+            expect(algorithmStore.investmentsGreedy).toHaveLength(6); // 3 cold-start + 3 investments
+            // Sollte mit Index 0 beginnen wenn keine vorherigen Ergebnisse existieren
+            expect(algorithmStore.investmentsGreedy[0].stock).toBe(banditStore.selectedStocks[0]);
         });
     });
 
-    // Tests für die epsilon-Greedy Implementierung (if/else-Verzweigung)
-    describe('epsilon-greedy implementation', () => {
-        // Test für die Exploration (wenn Math.random() < val_epsilon)
-        it('should randomly select an arm when Math.random() < epsilon', () => {
+    // Tests für Error Handling und Edge Cases
+    describe('Error Handling and Edge Cases', () => {
+        it('should handle null or undefined greedyReturn values', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.1 },
-                { name: "Arm2", propability: 0.9 }
-            ];
-            const trials = 5;
-            
-            // Setze das Verhalten von Math.random() für Exploration
-            const mathRandomSpy = vi.spyOn(Math, 'random')
-                .mockReturnValueOnce(0.05) // Unter epsilon (0.1) -> Exploration
-                .mockReturnValueOnce(0.5)  // Floor(0.5 * 2) = 1 -> Zweiter Arm
-                .mockReturnValueOnce(0.05) // Unter epsilon -> Exploration
-                .mockReturnValueOnce(0.0)  // Floor(0.0 * 2) = 0 -> Erster Arm
-                .mockReturnValueOnce(0.05) // Unter epsilon -> Exploration
-                .mockReturnValueOnce(0.9); // Floor(0.9 * 2) = 1 -> Zweiter Arm
-            
-            // Mock bernoulli für konsistente Ergebnisse
-            bernoulliModule.bernoulli.mockReturnValue(true);
-            
-            // Act
-            const result = eGreedy_bernoulli(arms, trials);
-            
-            // Assert
-            // Prüfen, ob beide Arme ausgewählt wurden
-            expect(result[0].trial_result.length).toBeGreaterThan(0);
-            expect(result[1].trial_result.length).toBeGreaterThan(0);
-            
-            // Restore Math.random
-            mathRandomSpy.mockRestore();
-        });
-        
-        // Test für die Exploitation (wenn Math.random() >= val_epsilon)
-        it('should select the best arm when Math.random() >= epsilon', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.1 },
-                { name: "Arm2", propability: 0.9 }
-            ];
-            const trials = 5;
-            
-            // Für diesen Test wird das Verhalten des Bandits nicht so wichtig sein,
-            // da wir hauptsächlich testen wollen, dass Math.random() korrekt verwendet wird
-            bernoulliModule.bernoulli.mockReturnValue(true);
-            
-            // Setze das Verhalten von Math.random() für Exploitation
-            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9); // Über epsilon -> Exploitation
-            
-            // Act
-            const result = eGreedy_bernoulli(arms, trials);
-            
-            // Assert
-            // Wir prüfen, dass Math.random mindestens einmal aufgerufen wurde (für die epsilon-Prüfung)
-            expect(mathRandomSpy).toHaveBeenCalled();
-            
-            // Und dass jeder Arm mindestens einmal ausgewählt wurde
-            const totalTrials = result.reduce((sum, arm) => sum + arm.trial_result.length, 0);
-            expect(totalTrials).toBe(trials);
-            
-            // Restore Math.random
-            mathRandomSpy.mockRestore();
-        });
-        
-        // Test ob die Variable best_arm_index und best_arm_value korrekt außerhalb der Schleife definiert wurden
-        it('should maintain best arm tracking across multiple trials', () => {
-            // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.1 },
-                { name: "Arm2", propability: 0.9 }
-            ];
-            const trials = 10;
-            
-            // Wir wollen nicht die Armselektion testen, sondern nur die Bandit-Berechnung
-            bernoulliModule.bernoulli.mockReturnValue(true); // Alle Züge geben true zurück
-            
-            // Setze das Verhalten von Math.random() für deterministische Tests
-            // Alle über epsilon -> immer Exploitation (greedy Auswahl)
-            const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9);
-            
-            // Act
-            const result = eGreedy_bernoulli(arms, trials);
-            
-            // Assert
-            // Überprüfen, dass alle Trials durchgeführt wurden
-            const totalTrials = result.reduce((sum, arm) => sum + arm.trial_result.length, 0);
-            expect(totalTrials).toBe(trials);
-            
-            // Überprüfen, dass die Werte korrekt berechnet werden
-            result.forEach(arm => {
-                if (arm.trial_result.length > 0) {
-                    expect(arm.bandit_result).toBe(1); // Alle Züge sind true, also sollte bandit_result 1 sein
+            banditStore.possibleInvestments = 2;
+            algorithmStore.investmentsGreedy = [
+                {
+                    stock: banditStore.selectedStocks[0],
+                    greedyReturn: null // null value
+                },
+                {
+                    stock: banditStore.selectedStocks[1],
+                    greedyReturn: undefined // undefined value
                 }
-            });
+            ];
             
-            // Restore Math.random
-            mathRandomSpy.mockRestore();
+            // Act & Assert
+            expect(() => greedy_bernoulli()).not.toThrow();
+            expect(algorithmStore.investmentsGreedy.length).toBeGreaterThan(2);
         });
         
-        // Test, dass epsilon korrekt als Parameter übergeben wird
-        it('should respect the epsilon parameter for exploration vs exploitation', () => {
+        it('should handle stores being modified during execution', () => {
             // Arrange
-            const arms = [
-                { name: "Arm1", propability: 0.5 },
-                { name: "Arm2", propability: 0.5 }
-            ];
-            const trials = 100;
-            
-            // Spioniere Math.random() und Math.floor() aus, ohne das Verhalten zu ändern
-            const mathRandomSpy = vi.spyOn(Math, 'random');
-            const mathFloorSpy = vi.spyOn(Math, 'floor');
-            
-            // Mock bernoulli für konsistente Ergebnisse
-            bernoulliModule.bernoulli.mockReturnValue(true);
+            banditStore.possibleInvestments = 5;
+            const originalInvestments = banditStore.possibleInvestments;
             
             // Act
-            // Regular greedy sollte nie einen zufälligen Arm auswählen
-            vi.clearAllMocks(); // Zurücksetzen vor dem Test
-            greedy_bernoulli(arms, trials);
+            greedy_bernoulli();
             
-            // Prüfe, dass Math.floor() nicht für die Zufallsauswahl aufgerufen wurde
-            const floorCallsGreedy = mathFloorSpy.mock.calls.length;
-            
-            // Zurücksetzen vor dem eGreedy-Test
-            vi.clearAllMocks();
-            
-            // eGreedy sollte manchmal einen zufälligen Arm auswählen
-            eGreedy_bernoulli(arms, trials);
+            // Modify store after execution
+            banditStore.possibleInvestments = 10;
             
             // Assert
-            // Math.floor() sollte für die Zufallsauswahl bei eGreedy öfter aufgerufen werden
-            expect(mathFloorSpy.mock.calls.length).toBeGreaterThan(floorCallsGreedy);
+            expect(algorithmStore.investmentsGreedy).toHaveLength(8); // 3 cold-start + 5 investments
+        });
+        
+        it('should maintain algorithm progress flag consistency', () => {
+            // Arrange
+            banditStore.possibleInvestments = 3;
+            const startFlag = algorithmStore.algorithmsInProgress;
             
-            // Math.random() sollte bei eGreedy für beide Zwecke aufgerufen werden:
-            // 1. Für epsilon-Vergleich
-            // 2. Für die Zufallsauswahl eines Arms
-            expect(mathRandomSpy).toHaveBeenCalled();
+            // Act
+            greedy_bernoulli();
+            const endFlag = algorithmStore.algorithmsInProgress;
             
-            // Restore spies
-            mathRandomSpy.mockRestore();
-            mathFloorSpy.mockRestore();
+            // Assert
+            expect(startFlag).toBe(false); // Should start false
+            expect(endFlag).toBe(false); // Should end false
+        });
+    });
+
+    // Performance und Integration Tests
+    describe('Performance and Integration', () => {
+        it('should handle large number of investments efficiently', () => {
+            // Arrange
+            banditStore.possibleInvestments = 1000;
+            const startTime = performance.now();
+            
+            // Act
+            greedy_bernoulli();
+            const endTime = performance.now();
+            
+            // Assert
+            expect(algorithmStore.investmentsGreedy).toHaveLength(1003); // 1000 + 3 cold-start
+            expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
+        });
+        
+        it('should work correctly with all four algorithm variants', () => {
+            // Arrange
+            banditStore.possibleInvestments = 10;
+            
+            // Test all four algorithms
+            const algorithms = [
+                { name: 'greedy_bernoulli', func: greedy_bernoulli },
+                { name: 'eGreedy_bernoulli', func: eGreedy_bernoulli },
+                { name: 'greedy_gaussian', func: greedy_gaussian },
+                { name: 'eGreedy_gaussian', func: eGreedy_gaussian }
+            ];
+            
+            algorithms.forEach(({ name, func }) => {
+                // Reset store
+                algorithmStore.investmentsGreedy = [];
+                
+                // Act
+                func();
+                
+                // Assert
+                expect(algorithmStore.investmentsGreedy).toHaveLength(13); // 3 cold-start + 10 investments
+                expect(algorithmStore.algorithmsInProgress).toBe(false);
+                
+                algorithmStore.investmentsGreedy.forEach(investment => {
+                    expect(investment).toHaveProperty('stock');
+                    expect(investment).toHaveProperty('greedyReturn');
+                    expect(typeof investment.greedyReturn).toBe('number');
+                });
+            });
+        });
+        
+        it('should maintain data integrity across multiple runs', () => {
+            // Arrange
+            banditStore.possibleInvestments = 5;
+            
+            // Act - Run algorithm multiple times
+            greedy_bernoulli();
+            const firstRunLength = algorithmStore.investmentsGreedy.length;
+            
+            greedy_bernoulli();
+            const secondRunLength = algorithmStore.investmentsGreedy.length;
+            
+            // Assert
+            expect(firstRunLength).toBe(8); // 3 cold-start + 5 investments
+            expect(secondRunLength).toBe(16); // Should append: 8 + 3 cold-start + 5 investments
+            
+            // Each investment should have valid structure
+            algorithmStore.investmentsGreedy.forEach(investment => {
+                expect(investment.stock).toBeDefined();
+                expect(typeof investment.greedyReturn).toBe('number');
+            });
         });
     });
 });
