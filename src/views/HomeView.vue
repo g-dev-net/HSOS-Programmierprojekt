@@ -7,6 +7,7 @@ import stocks from '@/data/aktien.json'
 import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
 import type { selectedStock, Stock } from '@/types/bandits';
 import MainTable from '@/components/MainTable.vue';
+import type { Header, Row } from '@/types/table';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -96,13 +97,16 @@ function onInvest(stock: selectedStock) {
   banditStore.pullArm(banditStore.activeBandit, stock)
 }
 
-const tableHeaders = computed(() => {
+const tableHeaders: Ref<Header[]> = computed(() => {
   if (banditStore.activeBandit === 'bernoulli') {
-    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}];
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}] as Header[];
   } else if (banditStore.activeBandit === 'gaussian') {
-    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}];
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}] as Header[];
+  } else {
+    return [] as Header[];
   }
 });
+const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 
 </script>
 
@@ -153,7 +157,7 @@ const tableHeaders = computed(() => {
               (
                 {{
                   banditStore.investments.length > 0
-                    ? (((parseFloat(banditStore.currentCapital) - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
+                    ? (((banditStore.currentCapital - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
                     : '0 %'
                 }}
               )
@@ -206,7 +210,7 @@ const tableHeaders = computed(() => {
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-          <MainTable :headers="tableHeaders" :rows="banditStore.displayData"></MainTable>
+          <MainTable :headers="tableHeaders" :rows="tableRows"></MainTable>
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
          <div>

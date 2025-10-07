@@ -15,7 +15,7 @@ export const useBanditStore = defineStore('bandit', () => {
   const activeBandit: Ref<string> = ref(bandits[0].key);
 
   const startingCapital = ref(10000)
-  const currentCapital = computed(() => { return displayData.value[investments.value.length].portfolioValue })
+  const currentCapital: Ref<number> = computed(() => { return parseFloat(displayData.value[investments.value.length].portfolioValue) })
   const remainingCapital = computed(() => { return startingCapital.value - (investmentStep.value * investments.value.length) })
   const possibleInvestments = ref(10)
   const investmentStep = computed(() => (startingCapital.value / possibleInvestments.value))
@@ -23,11 +23,11 @@ export const useBanditStore = defineStore('bandit', () => {
     return investments.value.filter(inv => inv.bernoulliReturn === true).length;
   })
 
-  const gaussianPortfolioSubtitle = computed(() => {
-    return investments.value
+  const gaussianPortfolioSubtitle: Ref<number> = computed(() => {
+    return parseFloat(investments.value
       .filter(inv => inv.gaussianReturn !== null)
       .reduce((sum, inv) => sum + (inv.gaussianReturn! * investmentStep.value), 0)
-      .toFixed(2);
+      .toFixed(2));
   })
 
   // Liste mit den ausgewählten Aktien und deren Parametern
