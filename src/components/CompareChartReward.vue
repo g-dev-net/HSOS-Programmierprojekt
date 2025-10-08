@@ -85,6 +85,8 @@ const options = computed(() => ({
     lineColor: "white",
     tickColor: "white",
     labelFontColor: "white",
+    interval: 1,
+    minimum: 0,
   },
   axisY: {
     title: yAxisTitle.value,
