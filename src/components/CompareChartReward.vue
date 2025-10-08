@@ -20,6 +20,22 @@ const props = defineProps({
     type: Array<DisplayDataPoint>,
     required: false
   },
+  showUser: {
+    type: Boolean,
+    default: true
+  },
+  showGreedy: {
+    type: Boolean,
+    default: true
+  },
+  showThompson: {
+    type: Boolean,
+    default: true
+  },
+  showUCB: {
+    type: Boolean,
+    default: true
+  },
   width: {
     type: Number,
     default: 900
@@ -86,6 +102,7 @@ const options = computed(() => ({
     name: "Nutzerergebnis",
     lineThickness: 3,
     markerColor: "white",
+    visible: props.showUser,
     dataPoints: chartUserData.value
   },
   {
@@ -95,6 +112,7 @@ const options = computed(() => ({
     name: "Greedy Algorithmus",
     lineThickness: 3,
     markerColor: "red",
+    visible: props.showGreedy,
     dataPoints: chartGreedyData.value
   },
   {
@@ -104,6 +122,7 @@ const options = computed(() => ({
     name: "Thompson Sampling",
     lineThickness: 3,
     markerColor: "green",
+    visible: props.showThompson,
     dataPoints: chartThompsonData.value
   },
   {
@@ -113,6 +132,7 @@ const options = computed(() => ({
     name: "Upper Confidence Bound",
     lineThickness: 3,
     markerColor: "blue",
+    visible: props.showUCB,
     dataPoints: chartUCBData.value
   }
   ]

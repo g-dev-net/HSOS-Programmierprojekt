@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeMount, type Ref, ref, watch } from 'vue';
+import { onBeforeMount, ref } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
@@ -8,6 +8,11 @@ import CompareChartReward from '@/components/CompareChartReward.vue';
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
 const algorithmStore = useAlgorithmStore();
+
+const showUser = ref(true);
+const showGreedy = ref(true);
+const showThompson = ref(true);
+const showUCB = ref(true);
 
 function onNavBack() {
   router.push('/')
@@ -40,13 +45,35 @@ onBeforeMount(() => {
             :dataGreedy="algorithmStore.greedyDataPoints" 
             :dataThompson="algorithmStore.thompsonSamplingDataPoints"
             :dataUser="banditStore.displayData" 
-            :activeBandit="banditStore.activeBandit"/>
+            :activeBandit="banditStore.activeBandit"
+            :showUser="showUser"
+            :showGreedy="showGreedy"
+            :showThompson="showThompson"
+            :showUCB="showUCB"/>
         </div>
       </div>
       <!-- Sidebar -->
       <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
           <h3>Einstellungen</h3>
+          <div class="algorithm-toggle-group">
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showUser" />
+              Nutzerergebnis
+            </label>
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showGreedy" />
+              Greedy Algorithmus
+            </label>
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showThompson" />
+              Thompson Sampling
+            </label>
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showUCB" />
+              Upper Confidence Bound
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -107,6 +134,19 @@ onBeforeMount(() => {
 /* Sidebar */
 .sidebar-portfolio {
   width: 100%;
+}
+
+.algorithm-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.algorithm-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 
