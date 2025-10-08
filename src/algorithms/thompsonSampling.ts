@@ -68,6 +68,7 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
         algorithmStore.investmentsThompson.push({
             stock: chosen_arm,
             greedyReturn: null,
+            eGreedyReturn: null,
             thompsonReturn: reward,
             ucbReturn: null,
             gradientReturn: null,

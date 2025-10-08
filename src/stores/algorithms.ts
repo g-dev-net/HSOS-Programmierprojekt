@@ -9,11 +9,12 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
 
   // list of investments
   const investmentsGreedy = ref<AlgoInvestment[]>([])
+  const investmentsEGreedy = ref<AlgoInvestment[]>([])
   const investmentsThompson = ref<AlgoInvestment[]>([])
   const investmentsUCB = ref<AlgoInvestment[]>([])
   const investmentsGradient = ref<AlgoInvestment[]>([])
   const investmentsOptimisticInitial = ref<AlgoInvestment[]>([])
   const investmentsUserAlgorithm = ref<AlgoInvestment[]>([])
 
-  return { algorithmsInProgress, investmentsGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm }
+  return { algorithmsInProgress, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm }
 })

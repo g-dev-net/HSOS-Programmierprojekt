@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { greedy_bernoulli, greedy_gaussian, eGreedy_bernoulli, eGreedy_gaussian } from '../algorithms/greedy.ts';
+import { greedy_bernoulli, greedy_gaussian, eGreedy_bernoulli, eGreedy_gaussian } from '../algorithms/e_greedy_OIV.ts';
 import { useBanditStore } from '@/stores/bandit';
 import { useAlgorithmStore } from '@/stores/algorithms';
 
