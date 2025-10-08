@@ -8,9 +8,11 @@ import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/ba
 import type { selectedStock, Stock } from '@/types/bandits';
 import MainTable from '@/components/MainTable.vue';
 import router from '@/router';
+import { useAlgorithmStore } from '@/stores/algorithms';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
+const algorithmStore = useAlgorithmStore();
 const stockList = stocks as Stock[];
 initializePortfolio();
 
@@ -108,6 +110,11 @@ const tableHeaders = computed(() => {
     return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}];
   }
 });
+
+const resetBandit = () => {
+  banditStore.resetBandit();
+  algorithmStore.resetAlgorithms();
+}
 
 </script>
 
@@ -224,7 +231,7 @@ const tableHeaders = computed(() => {
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
             <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" @click="banditStore.resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+            <button class="white-button button-red" @click="resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
           <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
             <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />

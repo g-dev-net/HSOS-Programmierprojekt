@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import MainChart from '@/components/MainChart.vue';
-import { computed, type Ref, ref, watch } from 'vue';
+import { computed, onBeforeMount, type Ref, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
-import Modal from '@/components/Modal.vue';
-import stocks from '@/data/aktien.json'
-import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
-import type { selectedStock, Stock } from '@/types/bandits';
-import MainTable from '@/components/MainTable.vue';
 import router from '@/router';
+import { useAlgorithmStore } from '@/stores/algorithms';
+import CompareChartReward from '@/components/CompareChartReward.vue';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
+const algorithmStore = useAlgorithmStore();
 
 function onNavBack() {
   router.push('/')
 }
+
+onBeforeMount(() => {
+  if (!algorithmStore.algorithmsCompleted && banditStore.banditInProgress) {
+    algorithmStore.runAlgorithms();
+  }
+})
 
 </script>
 
@@ -32,7 +35,12 @@ function onNavBack() {
         
         <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <MainChart :data="banditStore.displayData" :activeBandit="banditStore.activeBandit"/>
+          <CompareChartReward 
+            :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
+            :dataGreedy="algorithmStore.greedyDataPoints" 
+            :dataThompson="algorithmStore.thompsonSamplingDataPoints"
+            :dataUser="banditStore.displayData" 
+            :activeBandit="banditStore.activeBandit"/>
         </div>
       </div>
       <!-- Sidebar -->

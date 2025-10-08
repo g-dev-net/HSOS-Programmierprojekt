@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DisplayDataPoint } from '@/types/investment';
-import { active } from 'd3';
 
 
 const props = defineProps({
