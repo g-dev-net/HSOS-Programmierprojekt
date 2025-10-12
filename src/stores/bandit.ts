@@ -9,8 +9,8 @@ export const useBanditStore = defineStore('bandit', () => {
 
   // --------------------- general values ---------------------
   const bandits = [
-    { name: 'Gaussian-Bandit', key: 'gaussian' },
     { name: 'Bernoulli-Bandit', key: 'bernoulli' },
+    { name: 'Gaussian-Bandit', key: 'gaussian' },
   ];
   const activeBandit: Ref<string> = ref(bandits[0].key);
 
