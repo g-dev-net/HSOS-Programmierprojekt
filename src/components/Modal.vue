@@ -34,7 +34,7 @@
 
           <footer class="modal__footer">
             <slot name="footer">
-              <button class="btn" type="button" @click="close()">Close</button>
+              <button class="white-button" type="button" @click="close()">Close</button>
             </slot>
           </footer>
         </div>
@@ -162,16 +162,6 @@ onBeforeUnmount(() => {
 .modal__content {
   padding: 1.25rem;
   overflow: auto;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 0.9rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  background: black;
-  cursor: pointer;
 }
 
 .modal-fade-enter-active,

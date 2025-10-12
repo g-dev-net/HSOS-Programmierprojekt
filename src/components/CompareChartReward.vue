@@ -28,6 +28,14 @@ const props = defineProps({
     type: Array<DisplayDataPoint>,
     required: false
   },
+  gradientDataPoints: {
+    type: Array<DisplayDataPoint>,
+    required: false
+  },
+  showGradient: {
+    type: Boolean,
+    default: true
+  },
   showUser: {
     type: Boolean,
     default: true
@@ -90,6 +98,10 @@ const chartOIVData = computed(() =>
   props.dataOIV ? props.dataOIV.map((point) => ({ x: point.x, y: point.y })) : []
 )
 
+const chartGradientData = computed(() =>
+  props.gradientDataPoints ? props.gradientDataPoints.map((point) => ({ x: point.x, y: point.y })) : []
+)
+
 const yAxisTitle = computed(() => {
   return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
 })
@@ -101,7 +113,8 @@ const maxDataPoints = computed(() => {
     props.dataThompson.length,
     props.dataUCB?.length ?? 0,
     props.dataEGreedy?.length ?? 0,
-    props.dataOIV?.length ?? 0
+    props.dataOIV?.length ?? 0,
+    props.gradientDataPoints?.length ?? 0
   ]
 
   return Math.max(...lengths)
@@ -202,6 +215,16 @@ const options = computed(() => ({
     markerColor: "purple",
     visible: props.showOIV,
     dataPoints: chartOIVData.value
+  },
+  {
+    type: "line",
+    lineColor: "cyan",
+    showInLegend: true,
+    name: "Gradient Bandit",
+    lineThickness: 3,
+    markerColor: "cyan",
+    visible: props.showGradient,
+    dataPoints: chartGradientData.value
   }
   ]
 }))

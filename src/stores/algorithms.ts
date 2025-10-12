@@ -5,6 +5,7 @@ import { eGreedy_bernoulli, eGreedy_gaussian, greedy_bernoulli, greedy_gaussian,
 import { useBanditStore } from './bandit'
 import { thompsonSampling_bernoulli, thompsonSampling_gaussian } from '@/algorithms/thompsonSampling'
 import { upperConfidenceBound_bernoulli, upperConfidenceBound_gaussian } from '@/algorithms/UpperConfidenceBound'
+import { gradientBandit_bernoulli, gradientBandit_gaussian } from '@/algorithms/gradientBandit'
 
 export const useAlgorithmStore = defineStore('algorithm', () => {
   var banditStore = useBanditStore()
@@ -43,12 +44,14 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
       thompsonSampling_bernoulli()
       upperConfidenceBound_bernoulli()
       OIV_bernoulli()
+      gradientBandit_bernoulli()
     } else if (banditStore.activeBandit == 'gaussian') {
       greedy_gaussian()
       eGreedy_gaussian()
       thompsonSampling_gaussian()
       upperConfidenceBound_gaussian()
       OIV_gaussian()
+      gradientBandit_gaussian()
     }
 
     algorithmsInProgress.value = false
@@ -274,6 +277,47 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
     return dataPoints;
   })
 
+  const gradientDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
+    var yCounter = 0;
+    var winSum = 0;
+    var portfolioValue = banditStore.startingCapital;
+    var dataPoints: DisplayDataPoint[] = [];
+    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
 
-  return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints }
+    investmentsGradient.value.forEach((investment, index) => {
+      var isWon = false;
+      var winValue = 0;
+      if (banditStore.activeBandit === 'bernoulli') {
+        isWon = Boolean(investment.gradientReturn);
+      } else if (banditStore.activeBandit === 'gaussian' && investment.gradientReturn !== null) {
+        isWon = investment.gradientReturn > 0;
+        winValue = investment.gradientReturn * banditStore.investmentStep;
+        winSum += winValue;
+        portfolioValue += winValue;
+      }   
+      if (isWon) {
+        yCounter += 1;
+      }
+      var yValue = 0;
+      if (banditStore.activeBandit === 'bernoulli') {
+        yValue = yCounter;
+      } else if (banditStore.activeBandit === 'gaussian') {
+        yValue = winSum;
+      }
+
+      dataPoints.push({
+        x: index + 1,
+        y: yValue,
+        label: `Investment ${index + 1}`,
+        stock: investment.stock.stock.name,
+        portfolioValue: (portfolioValue).toFixed(2),
+        banditResult: ""
+      });
+    })
+
+    return dataPoints;
+  })
+
+
+  return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
 })
