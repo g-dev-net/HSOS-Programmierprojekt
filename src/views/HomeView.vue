@@ -9,6 +9,7 @@ import type { selectedStock, Stock } from '@/types/bandits';
 import MainTable from '@/components/MainTable.vue';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
+import type { Header, Row } from '@/types/table';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -103,13 +104,16 @@ function onInvest(stock: selectedStock) {
   banditStore.pullArm(banditStore.activeBandit, stock)
 }
 
-const tableHeaders = computed(() => {
+const tableHeaders: Ref<Header[]> = computed(() => {
   if (banditStore.activeBandit === 'bernoulli') {
-    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}];
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}] as Header[];
   } else if (banditStore.activeBandit === 'gaussian') {
-    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}];
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}] as Header[];
+  } else {
+    return [] as Header[];
   }
 });
+const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 
 const resetBandit = () => {
   banditStore.resetBandit();
@@ -168,7 +172,7 @@ const resetBandit = () => {
               (
                 {{
                   banditStore.investments.length > 0
-                    ? (((parseFloat(banditStore.currentCapital) - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
+                    ? (((banditStore.currentCapital - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
                     : '0 %'
                 }}
               )
@@ -221,7 +225,7 @@ const resetBandit = () => {
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-          <MainTable :headers="tableHeaders" :rows="banditStore.displayData"></MainTable>
+          <MainTable :headers="tableHeaders" :rows="tableRows"></MainTable>
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
          <div>
