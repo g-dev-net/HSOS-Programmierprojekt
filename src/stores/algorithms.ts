@@ -15,6 +15,7 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
 
   // list of investments
   const investmentsGreedy = ref<AlgoInvestment[]>([])
+  const investmentsEGreedy = ref<AlgoInvestment[]>([])
   const investmentsThompson = ref<AlgoInvestment[]>([])
   const investmentsUCB = ref<AlgoInvestment[]>([])
   const investmentsGradient = ref<AlgoInvestment[]>([])
