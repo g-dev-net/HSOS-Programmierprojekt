@@ -30,8 +30,19 @@ const yAxisTitle = computed(() => {
   return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
 })
 
+const dataPointCount = computed(() => props.data.length)
+
+const axisInterval = computed(() => {
+  const targetTickCount = 10
+  const interval = Math.ceil(dataPointCount.value / targetTickCount)
+
+  return interval > 1 ? interval : 1
+})
+
+const animationsEnabled = computed(() => dataPointCount.value < 400)
+
 const options = computed(() => ({
-  animationEnabled: true,
+  animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
   axisX:{
     title: "Investments",
@@ -40,7 +51,7 @@ const options = computed(() => ({
     lineColor: "white",
     tickColor: "white",
     labelFontColor: "white",
-    interval: 1,
+    interval: axisInterval.value,
     minimum: 0,
   },
   axisY: {

@@ -13,6 +13,8 @@ const showUser = ref(true);
 const showGreedy = ref(true);
 const showThompson = ref(true);
 const showUCB = ref(true);
+const showEGreedy = ref(true);
+const showOIV = ref(true);
 
 function onNavBack() {
   router.push('/')
@@ -44,12 +46,17 @@ onBeforeMount(() => {
             :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
             :dataGreedy="algorithmStore.greedyDataPoints" 
             :dataThompson="algorithmStore.thompsonSamplingDataPoints"
-            :dataUser="banditStore.displayData" 
+            :dataUser="banditStore.displayData"
+            :dataEGreedy="algorithmStore.eGreedyDataPoints"
+            :dataOIV="algorithmStore.oivDataPoints"
             :activeBandit="banditStore.activeBandit"
             :showUser="showUser"
             :showGreedy="showGreedy"
             :showThompson="showThompson"
-            :showUCB="showUCB"/>
+            :showUCB="showUCB"
+            :showEGreedy="showEGreedy"
+            :showOIV="showOIV"
+          />
         </div>
       </div>
       <!-- Sidebar -->
@@ -72,6 +79,14 @@ onBeforeMount(() => {
             <label class="algorithm-toggle-label">
               <input type="checkbox" v-model="showUCB" />
               Upper Confidence Bound
+            </label>
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showEGreedy" />
+              Epsilon-Greedy
+            </label>
+            <label class="algorithm-toggle-label">
+              <input type="checkbox" v-model="showOIV" />
+              Optimistic Initial Values
             </label>
           </div>
         </div>

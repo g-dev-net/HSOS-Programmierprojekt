@@ -20,6 +20,14 @@ const props = defineProps({
     type: Array<DisplayDataPoint>,
     required: false
   },
+  dataEGreedy: {
+    type: Array<DisplayDataPoint>,
+    required: false
+  },
+  dataOIV: {
+    type: Array<DisplayDataPoint>,
+    required: false
+  },
   showUser: {
     type: Boolean,
     default: true
@@ -33,6 +41,14 @@ const props = defineProps({
     default: true
   },
   showUCB: {
+    type: Boolean,
+    default: true
+  },
+  showEGreedy: {
+    type: Boolean,
+    default: true
+  },
+  showOIV: {
     type: Boolean,
     default: true
   },
@@ -66,12 +82,42 @@ const chartUCBData = computed(() =>
   props.dataUCB ? props.dataUCB.map((point) => ({ x: point.x, y: point.y })) : []
 )
 
+const chartEGreedyData = computed(() =>
+  props.dataEGreedy ? props.dataEGreedy.map((point) => ({ x: point.x, y: point.y })) : []
+)
+
+const chartOIVData = computed(() =>
+  props.dataOIV ? props.dataOIV.map((point) => ({ x: point.x, y: point.y })) : []
+)
+
 const yAxisTitle = computed(() => {
   return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
 })
 
+const maxDataPoints = computed(() => {
+  const lengths = [
+    props.dataUser.length,
+    props.dataGreedy.length,
+    props.dataThompson.length,
+    props.dataUCB?.length ?? 0,
+    props.dataEGreedy?.length ?? 0,
+    props.dataOIV?.length ?? 0
+  ]
+
+  return Math.max(...lengths)
+})
+
+const axisInterval = computed(() => {
+  const targetTickCount = 10
+  const interval = Math.ceil(maxDataPoints.value / targetTickCount)
+
+  return interval > 1 ? interval : 1
+})
+
+const animationsEnabled = computed(() => maxDataPoints.value < 400)
+
 const options = computed(() => ({
-  animationEnabled: true,
+  animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
   legend: {
     fontColor: "white",
@@ -85,7 +131,7 @@ const options = computed(() => ({
     lineColor: "white",
     tickColor: "white",
     labelFontColor: "white",
-    interval: 1,
+    interval: axisInterval.value,
     minimum: 0,
   },
   axisY: {
@@ -136,6 +182,26 @@ const options = computed(() => ({
     markerColor: "blue",
     visible: props.showUCB,
     dataPoints: chartUCBData.value
+  },
+  {
+    type: "line",
+    lineColor: "orange",
+    showInLegend: true,
+    name: "Epsilon-Greedy",
+    lineThickness: 3,
+    markerColor: "orange",
+    visible: props.showEGreedy,
+    dataPoints: chartEGreedyData.value
+  },
+  {
+    type: "line",
+    lineColor: "purple",
+    showInLegend: true,
+    name: "Optimistic Initial Values",
+    lineThickness: 3,
+    markerColor: "purple",
+    visible: props.showOIV,
+    dataPoints: chartOIVData.value
   }
   ]
 }))
