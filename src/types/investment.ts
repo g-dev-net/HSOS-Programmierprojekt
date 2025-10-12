@@ -24,5 +24,4 @@ export interface DisplayDataPoint {
     stock: string;
     portfolioValue: string;
     banditResult: string;
-    winLos: string;
 }

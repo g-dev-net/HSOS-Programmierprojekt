@@ -15,12 +15,20 @@ const props = defineProps({
   height: {
     type: Number,
     default: 500
+  },
+  activeBandit: {
+    type: String,
+    required: true
   }
 })
 
 const chartData = computed(() => 
   props.data.map((point) => ({ x: point.x, y: point.y }))
 )
+
+const yAxisTitle = computed(() => {
+  return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
+})
 
 const options = computed(() => ({
   animationEnabled: true,
@@ -31,14 +39,18 @@ const options = computed(() => ({
     labelTextAlign: "center",
     lineColor: "white",
     tickColor: "white",
+    labelFontColor: "white",
+    interval: 1,
+    minimum: 0,
   },
   axisY: {
-    title: "Gewinn",
+    title: yAxisTitle.value,
     titleFontColor: "white",
     lineColor: "white",
     tickColor: "white",
     gridColor: "gray",
     gridDashType: "dash",
+    labelFontColor: "white",
   },
   data: [{
     type: "line",
