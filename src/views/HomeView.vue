@@ -141,10 +141,13 @@ const resetBandit = () => {
       <div class="main-home-view">
         <div class="diagramm-headbar">
           <div class="portfolio-box">
-            <div class="portfolio-box-title">
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
               Portfolio
             </div>
-            <div class="portfolio-box-title">
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit === 'bernoulli'">
+              Investments
+            </div>
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
               {{ Math.round(banditStore.currentCapital * 100) / 100 }} €
             </div>
             <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'bernoulli'">
@@ -202,14 +205,14 @@ const resetBandit = () => {
                 </button>
               </div>
             </div>
-            <div class="capital-box-row">
+            <!-- <div class="capital-box-row">
               <div>
                 Per Investment:
               </div>
               <div>
                 {{ Math.round(banditStore.investmentStep * 100) / 100 }}
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
@@ -373,7 +376,6 @@ const resetBandit = () => {
 .diagramm-headbar {
   display: flex;
   justify-content: space-between;
-  align-items: end;
   margin-bottom: 1rem;
 }
 
@@ -387,7 +389,7 @@ const resetBandit = () => {
   font-size: x-large;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: start;
   flex-direction: row;
 }
 
