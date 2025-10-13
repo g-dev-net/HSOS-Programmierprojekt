@@ -2,8 +2,7 @@
 
 ## Overview
 
-The `UpperConfidenceBound.ts` module implements a UCB strategy for Multi Armed Bandit problems with Bernoulli and Gaussian reward models.
-The module follows a Vue.js architecture with Pinia stores and records UCB specific results in a dedicated array.
+The `UpperConfidenceBound.ts` module implements a UCB strategy for Multi Armed Bandit problems with Bernoulli and Gaussian reward models. The module follows a Vue.js architecture with Pinia stores and records UCB specific results in a dedicated array. For Gaussian rewards a fixed standard deviation `σ = 0.15` is used to scale the confidence bonus.
 
 ## Architecture
 
@@ -14,37 +13,25 @@ Two Pinia stores are used.
 
 ## The UCB Approach
 
-UCB balances exploration and exploitation via an optimistic estimate for each arm (i):
+UCB balances exploration and exploitation via an optimistic estimate for each arm (i). Let (n_i) be the number of UCB pulls for arm (i), (\hat\mu_i) the empirical mean reward of arm (i) computed from UCB pulls only, and (t) the total number of UCB pulls so far.
 
+**Bernoulli arms**
 [
-\mathrm{UCB}_i(t)=\hat\mu_i+c_i(t)
+\mathrm{UCB}_i(t)=\hat\mu_i+\sqrt{\frac{2\ln t}{n_i}}
 ]
 
-The confidence bonus ( c_i(t) ) depends on the reward model:
+**Gaussian arms with fixed variance (\sigma^2)**
+[
+\mathrm{UCB}_i(t)=\hat\mu_i+\sqrt{\frac{2\sigma^2\ln t}{n_i}},\quad \sigma=0.15
+]
 
-* **Bernoulli (bounded [0,1])**
-  [
-  c_i(t)=\sqrt{\frac{2\ln t}{n_i}}
-  ]
-* **Gaussian (known variance (\sigma^2))**
-  [
-  c_i(t)=\sqrt{\frac{2\sigma^2\ln t}{n_i}}
-  ]
-
-### Parameters
-
-* (\hat\mu_i): empirical mean reward of arm (i)
-* (n_i): number of pulls for arm (i)
-* (t): total number of UCB pulls so far
-* (\sigma): standard deviation of Gaussian rewards, fixed at **0.15**
-
-The algorithm always selects the arm with the largest UCB value.
+The algorithm selects the arm with the largest UCB value.
 
 ### Key Advantages
 
-* Built in exploration through a confidence bonus that adapts to the variance of rewards
-* Deterministic and easy to debug
-* Logarithmic regret under standard assumptions
+* Built in exploration through a confidence bonus that shrinks with more pulls per arm
+* Deterministic policy without random sampling
+* Logarithmic regret under standard assumptions for bounded or subgaussian rewards
 
 ## Functions
 
@@ -63,69 +50,62 @@ Runs UCB on Gaussian bandits.
 
 #### Dependencies for Gaussian
 
-* Requires `banditStore.selectedStocks` with `gaussian_param: number`
+* Requires `banditStore.selectedStocks` with `gaussian_param: number | object` depending on your `gaussian` helper
 * Writes results to `algorithmStore.investmentsUCB`
 
 ### `ucb(bandit: 'bernoulli' | 'gaussian'): void`
 
-Shared core runner for both variants.
+Core runner shared by both wrappers.
 
 #### Algorithm Flow
 
 1. Set `algorithmsInProgress = true`
-2. **Initialization:**
-   Pull each arm once if the budget allows. If the total budget `T` is smaller than the number of arms `K`, the run ends after initialization.
-3. **Main loop:**
-   While `totalUcbPulls() < T`:
+2. Initialization Pull each arm once as long as the remaining budget allows it. If the budget (T) is smaller than the arm count (K) the run ends after initialization
+3. Main loop While `totalUcbPulls() < T`
 
-   * Set `t = totalUcbPulls()`
-   * For each arm:
+   * Set `t = totalUcbPulls()`. After initialization `t ≥ K ≥ 1`
+   * For each arm compute
 
-     * Compute `n_i` as the count of UCB pulls for that arm
-     * Compute `mean_i` as the average of `ucbReturn` values
-     * Compute `score_i` using the model dependent formula:
-
-       ```ts
-       if (bandit === "gaussian") {
-         score_i = mean_i + Math.sqrt((2 * SIGMA * SIGMA * Math.log(t)) / n_i);
-       } else {
-         score_i = mean_i + Math.sqrt((2 * Math.log(t)) / n_i);
-       }
-       ```
-   * Select the arm with the highest score
-   * Draw a reward and store the result in `investmentsUCB`
+     * (n_i) as the number of entries in `investmentsUCB` for that stock
+     * (\text{mean}_i) as the average of `ucbReturn` for that stock
+     * For Bernoulli: `score_i = mean_i + sqrt((2 * ln t) / n_i)`
+     * For Gaussian: `score_i = mean_i + sqrt((2 * SIGMA * SIGMA * ln t) / n_i)` with `SIGMA = 0.15`
+   * Select the arm with the highest score and draw a reward using the bandit model
+   * Append the result to `investmentsUCB`
 4. Set `algorithmsInProgress = false`
 
 ## Statistical Implementation
 
-### Gaussian Specifics
-
-The Gaussian UCB uses a known standard deviation of **σ = 0.15**, consistent with the reward generator:
+### Score computation
 
 ```ts
 const SIGMA = 0.15;
-const ucbValue = (mean: number, n: number, t: number) =>
-  mean + Math.sqrt((2 * SIGMA * SIGMA * Math.log(t)) / n);
+
+const ucbValue = (mean: number, n: number, t: number, bandit: 'bernoulli' | 'gaussian') =>
+  bandit === 'gaussian'
+    ? mean + Math.sqrt((2 * SIGMA * SIGMA * Math.log(t)) / n)
+    : mean + Math.sqrt((2 * Math.log(t)) / n);
 ```
 
-This ensures the exploration term scales with the expected reward variance.
+* `mean` is the empirical average over UCB returns of the arm
+* The square root term is the optimism bonus that decreases with `n` and increases slowly with `t`
+* For Gaussian arms the bonus is scaled by the fixed variance proxy `σ^2 = SIGMA^2`
 
-### Reward Functions
-
-**Bernoulli:**
+### Bernoulli reward
 
 ```ts
 const reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
 ```
 
-**Gaussian:**
+Returns 0 or 1 which fits the bounded reward assumption of UCB1.
+
+### Gaussian reward
 
 ```ts
 const reward = gaussian(chosen_arm.gaussian_param);
 ```
 
-Gaussian rewards are real-valued with mean between -0.1 and 0.1 and standard deviation 0.15.
-This setup allows modeling continuous returns while keeping the variance moderate.
+Returns a real valued reward. UCB with the fixed variance bonus works well for subgaussian cases. Consider normalization or a variance aware UCB if variance is very high.
 
 ## Data Management
 
@@ -133,13 +113,13 @@ This setup allows modeling continuous returns while keeping the variance moderat
 
 #### `useBanditStore`
 
-* `selectedStocks`: fixed list of stocks during the run
-* `possibleInvestments`: total pull budget `T`
+* `selectedStocks`: fixed list of stocks for the whole run. No new stocks are added during a run
+* `possibleInvestments`: total number of pulls (T)
 
 #### `useAlgorithmStore`
 
-* `algorithmsInProgress`: UI state flag
-* `investmentsUCB`: array holding UCB results only
+* `algorithmsInProgress`: boolean flag for UI feedback
+* `investmentsUCB`: array of UCB specific investment entries
 
 ### Investment Entry Shape
 
@@ -156,9 +136,9 @@ This setup allows modeling continuous returns while keeping the variance moderat
 }
 ```
 
-Only `ucbReturn` is used here to ensure isolated UCB statistics.
+Only `ucbReturn` is populated for UCB. Keeping UCB results separate guarantees that statistics are computed from UCB data only.
 
-## Helper Functions
+## Key Helpers
 
 ```ts
 const pullsForStock = (idx: number) =>
@@ -176,7 +156,7 @@ function totalUcbPulls() {
 }
 ```
 
-These helpers compute per arm statistics directly from the UCB dataset.
+These helpers compute per arm counts and means from the dedicated UCB array and provide the global pull counter.
 
 ## Usage Example
 
@@ -187,37 +167,31 @@ import {
 } from '@/algorithms/UpperConfidenceBound';
 
 banditStore.selectedStocks = [
-  { name: 'AAPL', bernoulli_param: 0.7, gaussian_param: 0.05 },
-  { name: 'GOOG', bernoulli_param: 0.5, gaussian_param: -0.02 }
+  { /* stock object */, bernoulli_param: 0.7, gaussian_param: { /* params or mean */ } },
+  { /* another stock */, bernoulli_param: 0.5, gaussian_param: { /* params or mean */ } }
 ];
 banditStore.possibleInvestments = 1000;
 
-upperConfidenceBound_gaussian();
-// or
 upperConfidenceBound_bernoulli();
+// or
+upperConfidenceBound_gaussian();
 
 console.log(algorithmStore.investmentsUCB);
 ```
 
 ## Complexity
 
-* Each iteration filters `investmentsUCB` per arm to compute statistics.
-* For large `T`, maintaining local arrays for counts and sums can reduce overhead.
+* Each selection step filters `investmentsUCB` per arm to compute (n_i) and (\hat\mu_i). This is simple and clear which is good for moderate budgets
+* For very large (T) maintain per arm `count[i]` and `sum[i]` in local arrays and update them incrementally after each pull. This avoids repeated filtering and keeps per step work linear in the number of arms
 
 ## Limitations
 
-1. **Bounded reward assumption:**
-   UCB1 theory assumes rewards in [0,1]. The Gaussian variant approximates this via the variance-scaled bonus.
-2. **Fixed variance:**
-   The Gaussian implementation assumes a known and constant σ = 0.15.
-3. **Determinism:**
-   The policy has no randomness beyond reward draws, making it stable and reproducible.
-4. **Performance:**
-   Filtering per arm on every iteration is simple but not optimal for very large runs.
+1. UCB with a fixed variance bonus assumes bounded or subgaussian rewards. This matches Bernoulli rewards. For Gaussian rewards with high variance consider normalization or a tuned, variance aware UCB variant
+2. The policy is deterministic which simplifies debugging
+3. The current implementation recomputes statistics from history. Incremental statistics can speed up large runs
 
 ## Summary
 
-* `UpperConfidenceBound.ts` implements UCB for Bernoulli and Gaussian bandits.
-* Gaussian variant adjusts the exploration term using the known variance σ².
-* Results are stored exclusively in `investmentsUCB` for clean separation and analysis.
-* The approach is deterministic, transparent, and compatible with the Pinia store pattern in Vue.
+* `UpperConfidenceBound.ts` runs a UCB strategy for a fixed set of stocks and a fixed budget
+* It initializes with one pull per arm then repeatedly selects the arm with the largest optimistic estimate
+* Results are written only to `investmentsUCB` which keeps UCB separate from other algorithms and simplifies analysis
