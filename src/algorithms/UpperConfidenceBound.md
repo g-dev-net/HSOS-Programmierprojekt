@@ -2,7 +2,7 @@
 
 ## Overview
 
-Das Modul `UpperConfidenceBound.ts` implementiert die UCB1 Strategie für Multi Armed Bandit Probleme mit Bernoulli und Gaussian Belohnungsmodellen. Die Implementierung folgt einer Vue Architektur mit Pinia Stores und protokolliert UCB spezifische Ergebnisse in einem dedizierten Array. Für Gaussian Belohnungen wird eine feste Standardabweichung `σ = 0.15` verwendet, die den Bonus skaliert.
+Das Modul `UpperConfidenceBound.ts` implementiert die UCB1 Strategie für Multi Armed Bandit Probleme mit Bernoulli und Gaussian Belohnungsmodellen. Die Implementierung folgt einer Vue Architektur mit Pinia Stores und protokolliert UCB spezifische Ergebnisse in einem dedizierten Array. Für Gaussian Belohnungen wird eine feste Standardabweichung `SIGMA = 0.15` verwendet, die den Bonus skaliert.
 
 ## Architecture
 
@@ -13,21 +13,27 @@ Zwei Pinia Stores werden genutzt.
 
 ## The UCB Approach
 
-UCB balanciert Exploration und Exploitation über eine optimistische Schätzung für jeden Arm (i). Sei (n_i) die Anzahl der UCB Züge für Arm (i), (\hat{\mu}_i) der empirische Mittelwert der Belohnung von Arm (i) basierend nur auf UCB Zügen, und (t) die Gesamtzahl der bisherigen UCB Züge.
+UCB balanciert Exploration und Exploitation über eine optimistische Schätzung für jeden Arm `i`.
+Begriffe:
 
-### Bernoulli arms
+* `n_i` Anzahl der UCB Züge für Arm `i`
+* `mean_i` empirischer Mittelwert der Belohnung von Arm `i`, nur aus UCB Zügen berechnet
+* `t` Gesamtzahl der bisherigen UCB Züge
 
-[
-\mathrm{UCB}_i(t)=\hat{\mu}_i+\sqrt{\frac{2\ln t}{n_i}}
-]
+Bernoulli Arme
 
-### Gaussian arms with fixed variance (\sigma^2)
+```text
+UCB_i(t) = mean_i + sqrt((2 * ln(t)) / n_i)
+```
 
-[
-\mathrm{UCB}_i(t)=\hat{\mu}_i+\sqrt{\frac{2\sigma^2\ln t}{n_i}},\quad \sigma=0.15
-]
+Gaussian Arme mit fester Varianz
 
-Der Algorithmus wählt den Arm mit dem größten UCB Wert.
+```text
+UCB_i(t) = mean_i + sqrt((2 * SIGMA * SIGMA * ln(t)) / n_i)
+wobei SIGMA = 0.15
+```
+
+Der Algorithmus wählt den Arm mit dem größten `UCB_i(t)`.
 
 ### Key Advantages
 
@@ -62,16 +68,24 @@ Gemeinsamer Runner für beide Wrapper.
 #### Algorithm Flow
 
 1. Setze `algorithmsInProgress = true`
-2. Initialisierung Ziehe jeden Arm genau einmal, solange Budget verfügbar ist. Wenn das Budget (T) kleiner ist als die Armzahl (K) endet der Lauf nach der Initialisierung
+2. Initialisierung Ziehe jeden Arm genau einmal, solange Budget verfügbar ist. Wenn das Budget `T` kleiner ist als die Armzahl `K` endet der Lauf nach der Initialisierung
 3. Hauptschleife solange `totalUcbPulls() < T`
 
-   * Setze `t = totalUcbPulls()`. Nach der Initialisierung gilt `t ≥ K ≥ 1`
+   * Setze `t = totalUcbPulls()`. Nach der Initialisierung gilt `t >= K >= 1`
    * Für jeden Arm berechne
 
-     * (n_i) als Anzahl der Einträge in `investmentsUCB` für diese Aktie
-     * (\text{mean}_i) als Durchschnitt von `ucbReturn` für diese Aktie
-     * Bernoulli Score: `score_i = mean_i + sqrt((2 * ln t) / n_i)`
-     * Gaussian Score: `score_i = mean_i + sqrt((2 * SIGMA * SIGMA * ln t) / n_i)` mit `SIGMA = 0.15`
+     * `n_i` als Anzahl der Einträge in `investmentsUCB` für diese Aktie
+     * `mean_i` als Durchschnitt von `ucbReturn` für diese Aktie
+     * Bernoulli Score
+
+       ```text
+       score_i = mean_i + sqrt((2 * ln(t)) / n_i)
+       ```
+     * Gaussian Score
+
+       ```text
+       score_i = mean_i + sqrt((2 * SIGMA * SIGMA * ln(t)) / n_i)  // SIGMA = 0.15
+       ```
    * Wähle den Arm mit dem größten Score und ziehe eine Belohnung mit dem jeweiligen Bandit Modell
    * Hänge das Ergebnis an `investmentsUCB` an
 4. Setze `algorithmsInProgress = false`
@@ -91,7 +105,7 @@ const ucbValue = (mean: number, n: number, t: number, bandit: 'bernoulli' | 'gau
 
 * `mean` ist der empirische Durchschnitt der UCB Rückgaben eines Arms
 * Der Quadratwurzel Term ist der Optimismusbonus, der mit `n` abnimmt und mit `t` langsam wächst
-* Bei Gaussian Armen wird der Bonus durch die feste Varianz (\sigma^2=\text{SIGMA}^2) skaliert
+* Bei Gaussian Armen wird der Bonus durch die feste Varianz `SIGMA^2` skaliert
 
 ### Bernoulli reward
 
@@ -107,7 +121,7 @@ Gibt 0 oder 1 zurück und erfüllt die Annahme beschränkter Belohnungen von UCB
 const reward = gaussian(chosen_arm.gaussian_param);
 ```
 
-Gibt einen reellwertigen Reward zurück. Die feste Varianzskala eignet sich für subgaussian Fälle. Bei sehr hoher Varianz empfiehlt sich Normalisierung oder ein Varianz aware UCB.
+Gibt einen reellwertigen Reward zurück. Die feste Varianzskala eignet sich für subgaussian Fälle. Bei sehr hoher Varianz empfiehlt sich Normalisierung oder ein varianzsensitiver UCB.
 
 ## Data Management
 
@@ -116,7 +130,7 @@ Gibt einen reellwertigen Reward zurück. Die feste Varianzskala eignet sich für
 #### `useBanditStore`
 
 * `selectedStocks`: feste Liste von Aktien für den gesamten Lauf. Während eines Laufs werden keine neuen Aktien hinzugefügt
-* `possibleInvestments`: Gesamtzahl der Züge (T)
+* `possibleInvestments`: Gesamtzahl der Züge `T`
 
 #### `useAlgorithmStore`
 
@@ -183,12 +197,12 @@ console.log(algorithmStore.investmentsUCB);
 
 ## Complexity
 
-* Jede Auswahl filtert `investmentsUCB` pro Arm, um (n_i) und (\hat{\mu}_i) zu berechnen. Das ist einfach und für moderate Budgets gut geeignet
-* Für sehr großes (T) pro Arm `count[i]` und `sum[i]` lokal führen und nach jedem Zug inkrementell aktualisieren. So vermeidest du wiederholtes Filtern und hältst den Aufwand pro Schritt linear in der Armzahl
+* Jede Auswahl filtert `investmentsUCB` pro Arm, um `n_i` und `mean_i` zu berechnen. Das ist einfach und für moderate Budgets gut geeignet
+* Für sehr großes `T` pro Arm `count[i]` und `sum[i]` lokal führen und nach jedem Zug inkrementell aktualisieren. So vermeidest du wiederholtes Filtern und hältst den Aufwand pro Schritt linear in der Armzahl
 
 ## Limitations
 
-1. UCB mit fester Varianzskala setzt beschränkte oder subgaussian Belohnungen voraus. Das passt zu Bernoulli Belohnungen. Bei Gaussian Belohnungen mit hoher Varianz empfiehlt sich Normalisierung oder eine getunte Varianz aware UCB Variante
+1. UCB mit fester Varianzskala setzt beschränkte oder subgaussian Belohnungen voraus. Das passt zu Bernoulli Belohnungen. Bei Gaussian Belohnungen mit hoher Varianz empfiehlt sich Normalisierung oder eine getunte varianzsensitive UCB Variante
 2. Die Politik ist deterministisch, was Debugging vereinfacht
 3. Die aktuelle Implementierung berechnet Statistiken aus der Historie neu. Inkrementelle Statistiken beschleunigen große Läufe
 
