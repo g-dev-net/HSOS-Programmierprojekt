@@ -37,7 +37,7 @@ UCB_i(t) = \bar{x}_i + \sqrt{\frac{2 \ln t}{n_i}}
 UCB_i(t) = \bar{x}_i + \sqrt{\frac{2 \cdot \sigma^2 \ln t}{n_i}}, \quad \sigma = 0.15
 ```
 
-The algorithm selects the arm with the highest ( UCB_i(t) ).
+The algorithm selects the arm with the highest $UCB_i(t)$.
 
 ### Key Advantages
 
