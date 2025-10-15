@@ -41,6 +41,8 @@ function onCompareAlgorithms() {
 
 // ----------------------- stock management modal -----------------------
 const showStockManager = ref(false);
+// ----------------------- instructions modal -----------------------
+const showInstructionModal = ref(false);
 // open stock manager modal
 function onEditStock() {
   showStockManager.value = true;
@@ -132,12 +134,14 @@ const resetBandit = () => {
           {{ bandit.name }}
         </div>
       </div>
-      <div class="main-home-headbar-theory-button">
-        <div>
-          Theorie
-        </div>
-        <span class="material-symbols-outlined">open_in_new</span>
-      </div>
+      <button
+        type="button"
+        class="main-home-headbar-theory-button"
+        @click="showInstructionModal = true"
+      >
+        <span>Anleitung</span>
+        <span class="material-symbols-outlined">info</span>
+      </button>
     </div>
     <!-- Content -->
     <div class="home-view-content">
@@ -257,6 +261,21 @@ const resetBandit = () => {
       </div>
     </div>
   </div>
+  <Modal
+    v-model="showInstructionModal"
+    :close-on-backdrop="true"
+    :close-on-esc="true"
+  >
+    <template #header>
+      <h2 class="modal__title">Anleitung</h2>
+    </template>
+    <div class="instruction-modal-content">
+      <p>Hier wird die Anleitung angezeigt.</p>
+    </div>
+    <template #footer>
+      <button class="white-button" type="button" @click="showInstructionModal = false">Schließen</button>
+    </template>
+  </Modal>
   <Modal v-model="showStockManager" :close-on-backdrop="true" :close-on-esc="true">
     <template #header>
       <h2 class="modal_stockManager_title">Portfolio bearbeiten</h2>
@@ -345,6 +364,11 @@ const resetBandit = () => {
   cursor: pointer;
   font-weight: bold;
   font-size: x-large;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0;
+  font-family: inherit;
 }
 
 /* Main Content */
