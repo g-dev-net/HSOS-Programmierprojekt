@@ -7,10 +7,13 @@ import stocks from '@/data/aktien.json'
 import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
 import type { selectedStock, Stock } from '@/types/bandits';
 import MainTable from '@/components/MainTable.vue';
+import router from '@/router';
+import { useAlgorithmStore } from '@/stores/algorithms';
 import type { Header, Row } from '@/types/table';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
+const algorithmStore = useAlgorithmStore();
 const stockList = stocks as Stock[];
 initializePortfolio();
 
@@ -30,6 +33,10 @@ function onBanditChange(banditKey: string) {
     return;
   }
   banditStore.activeBandit = banditKey;
+}
+
+function onCompareAlgorithms() {
+  router.push('/algo')
 }
 
 // ----------------------- stock management modal -----------------------
@@ -108,6 +115,11 @@ const tableHeaders: Ref<Header[]> = computed(() => {
 });
 const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 
+const resetBandit = () => {
+  banditStore.resetBandit();
+  algorithmStore.resetAlgorithms();
+}
+
 </script>
 
 <template>
@@ -133,10 +145,13 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
       <div class="main-home-view">
         <div class="diagramm-headbar">
           <div class="portfolio-box">
-            <div class="portfolio-box-title">
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
               Portfolio
             </div>
-            <div class="portfolio-box-title">
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit === 'bernoulli'">
+              Investments
+            </div>
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
               {{ Math.round(banditStore.currentCapital * 100) / 100 }} €
             </div>
             <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'bernoulli'">
@@ -194,14 +209,14 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
                 </button>
               </div>
             </div>
-            <div class="capital-box-row">
+            <!-- <div class="capital-box-row">
               <div>
                 Per Investment:
               </div>
               <div>
                 {{ Math.round(banditStore.investmentStep * 100) / 100 }}
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
@@ -223,7 +238,7 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
             <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" @click="banditStore.resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+            <button class="white-button button-red" @click="resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
           <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
             <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
@@ -234,6 +249,9 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
             <button class="portfolio-item-button" @click="onInvest(selectedStock)" :disabled="!banditStore.isInvestmentPossible">
               Investieren
             </button>
+          </div>
+          <div class="sidebar-portfolio-controls">
+            <button class="white-button" @click="onCompareAlgorithms">Vergleich mit weiteren Algorithmen</button>
           </div>
         </div>
       </div>
@@ -362,7 +380,6 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 .diagramm-headbar {
   display: flex;
   justify-content: space-between;
-  align-items: end;
   margin-bottom: 1rem;
 }
 
@@ -376,7 +393,7 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
   font-size: x-large;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: start;
   flex-direction: row;
 }
 
@@ -463,6 +480,7 @@ const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 1rem;
   margin-bottom: 1rem;
   width: 100%;
 }

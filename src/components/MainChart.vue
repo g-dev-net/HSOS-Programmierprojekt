@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DisplayDataPoint } from '@/types/investment';
-import { active } from 'd3';
 
 
 const props = defineProps({
@@ -31,8 +30,19 @@ const yAxisTitle = computed(() => {
   return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
 })
 
+const dataPointCount = computed(() => props.data.length)
+
+const axisInterval = computed(() => {
+  const targetTickCount = 10
+  const interval = Math.ceil(dataPointCount.value / targetTickCount)
+
+  return interval > 1 ? interval : 1
+})
+
+const animationsEnabled = computed(() => dataPointCount.value < 400)
+
 const options = computed(() => ({
-  animationEnabled: true,
+  animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
   axisX:{
     title: "Investments",
@@ -41,6 +51,8 @@ const options = computed(() => ({
     lineColor: "white",
     tickColor: "white",
     labelFontColor: "white",
+    interval: axisInterval.value,
+    minimum: 0,
   },
   axisY: {
     title: yAxisTitle.value,

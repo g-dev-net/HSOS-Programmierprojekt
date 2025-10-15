@@ -9,6 +9,7 @@ export interface Investment {
 export interface AlgoInvestment {
     stock: selectedStock;
     greedyReturn: number | null;
+    eGreedyReturn: number | null;
     thompsonReturn: number | null;
     ucbReturn: number | null;
     gradientReturn: number | null;
