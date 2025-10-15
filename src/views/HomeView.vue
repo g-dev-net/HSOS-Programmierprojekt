@@ -15,6 +15,7 @@ import type { Header, Row } from '@/types/table';
 const banditStore = useBanditStore();
 const algorithmStore = useAlgorithmStore();
 const stockList = stocks as Stock[];
+type BanditKey = (typeof banditStore.bandits)[number]['key'];
 initializePortfolio();
 
 function initializePortfolio() {
@@ -27,7 +28,7 @@ function initializePortfolio() {
   }
 }
 
-function onBanditChange(banditKey: string) {
+function onBanditChange(banditKey: BanditKey) {
   if (banditStore.banditInProgress) {
     alert('Der Bandit läuft bereits. Bitte setzen Sie den Bandit zurück, um den Algorithmus zu wechseln.');
     return;

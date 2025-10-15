@@ -1,22 +1,32 @@
 <script setup lang="ts">
-import type { Row, Header } from '@/types/table';
+import { computed } from 'vue'
+import type { Row, Header } from '@/types/table'
 
 const props = defineProps<{
-  headers: Header[];
-  rows: Row[];
-}>();
+  headers: Header[]
+  rows: Row[]
+}>()
+
+const headerKeys = computed(() => props.headers.map(header => Object.keys(header)[0]))
 </script>
 
 <template>
   <table>
     <thead>
       <tr>
-        <th v-for="header in props.headers" :key="header[Object.keys(header)[0]]">{{ header[Object.keys(header)[0]] }}</th>
+        <th
+          v-for="(key, index) in headerKeys"
+          :key="key"
+        >
+          {{ props.headers[index][key] }}
+        </th>
       </tr>
     </thead>
     <tbody>
       <tr v-for="(row, rowIndex) in props.rows" :key="rowIndex">
-        <td v-for="header in props.headers" :key="header[Object.keys(header)[0]]">{{ row[Object.keys(header)[0]] }}</td>
+        <td v-for="key in headerKeys" :key="key">
+          {{ row[key] }}
+        </td>
       </tr>
     </tbody>
   </table>
