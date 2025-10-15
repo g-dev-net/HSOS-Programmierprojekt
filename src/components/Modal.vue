@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
 }
 .modal {
   background: black;
-  width: min(640px, 92vw);
+  width: 70vw;
   max-height: 86vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -137,6 +137,13 @@ onBeforeUnmount(() => {
   border: 2px solid gray;
 
 }
+
+@media (max-width: 640px) {
+  .modal {
+    width: 90vw;
+  }
+}
+
 .modal__header, .modal__footer {
   padding: 1rem 1.25rem;
   background: black;
