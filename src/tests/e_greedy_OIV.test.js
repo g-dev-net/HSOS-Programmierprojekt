@@ -189,7 +189,7 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
         { stock: { id: 1, name: 'Apple' }, bernoulli_param: 0.6, gaussian_param: 0.05 },
         { stock: { id: 2, name: 'Google' }, bernoulli_param: 0.7, gaussian_param: 0.03 }
       ];
-      banditStore.possibleInvestments = 20;
+      banditStore.possibleInvestments = 100;
       
       bernoulli.mockReturnValue(true);
       
@@ -203,28 +203,35 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
       expect(googleInvestments.length).toBeGreaterThan(0);
     });
 
+    // Error possible bc of randomness, but should hold true statistically -> run again
     it('should exploit best arm most of the time', () => {
-      banditStore.selectedStocks = [
-        { stock: { id: 1, name: 'Bad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
-        { stock: { id: 2, name: 'Good' }, bernoulli_param: 0.9, gaussian_param: 0.03 }
-      ];
-      banditStore.possibleInvestments = 20;
-      
-      // Simulate: Bad returns low, Good returns high
-      gaussian
-        .mockReturnValueOnce(0.01)  // Bad: low
-        .mockReturnValueOnce(0.09)  // Good: high (better!)
-        .mockReturnValue(0.08);     // Good continues high
-      
-      eGreedy_gaussian();
-      
-      // Both stocks should be tried (exploration), but Good should dominate (exploitation)
-      const badInvestments = algorithmStore.investmentsEGreedy.filter(inv => inv.stock.stock.name === 'Bad');
-      const goodInvestments = algorithmStore.investmentsEGreedy.filter(inv => inv.stock.stock.name === 'Good');
-      
-      expect(badInvestments.length).toBeGreaterThan(0); // Some exploration
-      expect(goodInvestments.length).toBeGreaterThan(0); // Some exploitation
-      expect(algorithmStore.investmentsEGreedy).toHaveLength(20);
+      try {
+        banditStore.selectedStocks = [
+          { stock: { id: 1, name: 'Bad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
+          { stock: { id: 2, name: 'Good' }, bernoulli_param: 0.9, gaussian_param: 0.03 }
+        ];
+        banditStore.possibleInvestments = 100;
+        
+        // Simulate: Bad returns low, Good returns high
+        gaussian
+          .mockReturnValueOnce(0.01)  // Bad: low
+          .mockReturnValueOnce(0.09)  // Good: high (better!)
+          .mockReturnValue(0.08);     // Good continues high
+        
+        eGreedy_gaussian();
+        
+        // Both stocks should be tried (exploration), but Good should dominate (exploitation)
+        const badInvestments = algorithmStore.investmentsEGreedy.filter(inv => inv.stock.stock.name === 'Bad');
+        const goodInvestments = algorithmStore.investmentsEGreedy.filter(inv => inv.stock.stock.name === 'Good');
+        
+        expect(badInvestments.length).toBeGreaterThan(0); // Some exploration
+        expect(goodInvestments.length).toBeGreaterThan(0); // Some exploitation
+        expect(algorithmStore.investmentsEGreedy).toHaveLength(100);
+      }
+      catch (e) {
+        println('Randomness caused test to fail, rerun to verify statistical behavior.');
+        throw e;
+      }
     });
   });
 
