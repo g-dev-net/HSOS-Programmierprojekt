@@ -438,6 +438,26 @@ const resetBandit = () => {
   overflow: hidden;
 }
 
+.table {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-top: 1rem;
+}
+
+.table::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+}
+
+.table::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
 /* Sidebar */
 .sidebar-portfolio {
   width: 100%;
