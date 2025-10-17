@@ -1,7 +1,7 @@
 import { ref, computed, type Ref} from 'vue'
 import { defineStore } from 'pinia'
 import type { AlgoInvestment, DisplayDataPoint } from '@/types/investment'
-import { greedy_bernoulli, greedy_gaussian } from '@/algorithms/greedy'
+import { greedy_bernoulli, greedy_gaussian } from '@/algorithms/e_greedy_OIV'
 import { useBanditStore } from './bandit'
 import { thompsonSampling_bernoulli, thompsonSampling_gaussian } from '@/algorithms/thompsonSampling'
 import { upperConfidenceBound_bernoulli, upperConfidenceBound_gaussian } from '@/algorithms/UpperConfidenceBound'
@@ -28,6 +28,7 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
 
     // clear previous results
     investmentsGreedy.value = []
+    investmentsEGreedy.value = []
     investmentsThompson.value = []
     investmentsUCB.value = []
     investmentsGradient.value = []
@@ -187,5 +188,5 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   })
 
 
-  return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints }
+  return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints }
 })

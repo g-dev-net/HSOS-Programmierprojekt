@@ -83,6 +83,7 @@ function ucb(bandit: BanditKind) {
     algorithmStore.investmentsUCB.push({
       stock: chosen_arm,
       greedyReturn: null,
+      eGreedyReturn: null,
       thompsonReturn: null,
       ucbReturn: reward,
       gradientReturn: null,
