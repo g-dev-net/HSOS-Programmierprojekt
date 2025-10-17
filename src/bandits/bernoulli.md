@@ -1,178 +1,124 @@
-# Bernoulli Arms Module
+# Bernoulli Sampler Technical Documentation
 
-In memory utilities for simulating Bernoulli bandit pulls. Each arm has a fixed win probability in the open closed range `(0.01, 0.99]`. The module exposes helpers to create or update arms and to record pulls.
+## Overview
 
-> File context: JavaScript ES modules. Works in Node and in the browser.
+The `bernoulli.ts` module provides a minimal function that samples a Bernoulli random variable using JavaScript’s standard pseudo random number generator. It returns `true` with probability `p` and `false` otherwise. Typical use cases include feature flags, simulations, and probabilistic branching.
 
-## Exports
+## Architecture
 
-```js
-export const bernoulli_arms = [];
-export const bernoulli_pulls = [];
+This utility is framework agnostic and has no runtime dependencies.
 
-export function bernoulli_generate_arm(arm_id) { ... }
-export function bernoulli_pull_arm(arm_id, bernoulli_arms_array) { ... }
-```
-
-## Data model
-
-### Arm
+### Module
 
 ```ts
-type BernoulliArm = {
-  arm_id: string
-  win_prob: number  // in (0.01, 0.99]
+export function bernoulli(win_prob: number) {
+  const won = Math.random() <= win_prob;
+  return won;
 }
 ```
 
-### Pull result
+### Optional variant for reproducibility
+
+A dependency injected version enables deterministic runs by supplying a custom RNG that returns a float in `[0, 1)`.
 
 ```ts
-type BernoulliPull = {
-  arm_id: string
-  pull_number: number  // global 1 based counter
-  won: boolean         // true if the trial succeeds
+export type RNG = () => number;
+
+export function bernoulliWith(rng: RNG, win_prob: number) {
+  return rng() <= win_prob;
 }
 ```
 
-State is kept in memory.
+## Functions
 
-* `bernoulli_arms`: list of `BernoulliArm`
-* `bernoulli_pulls`: append only list of `BernoulliPull`
+### `bernoulli(win_prob: number): boolean`
 
-## How the model works
+Samples a Bernoulli trial with success probability `win_prob`.
 
-* `bernoulli_generate_arm` draws a uniform `p` with `p = Math.random() * 0.98 + 0.01`
-* `bernoulli_pull_arm` samples a boolean outcome with `Math.random() <= arm.win_prob`
-* `pull_number` increases with each call across all arms
+#### Parameters
 
-## API
+* `win_prob`
+  Probability of success in `[0, 1]`.
 
-### `bernoulli_generate_arm(arm_id: string): BernoulliArm`
+#### Returns
 
-Creates or replaces an arm with identifier `arm_id`.
+* `boolean`
+  `true` for success, `false` for failure.
 
-Behavior
+#### Notes
 
-1. Draws `p` uniformly in `(0.01, 0.99]`
-2. Builds `{ arm_id, win_prob: p }`
-3. If an arm with the same id exists it is replaced. Otherwise a new entry is pushed
-4. Returns the created or updated arm
+* Uses `Math.random()` which is not seedable in standard JS environments.
+* For reproducible behavior use `bernoulliWith` with a seeded RNG you control.
 
-Side effects
+### `bernoulliWith(rng: RNG, win_prob: number): boolean`
 
-* Mutates the exported `bernoulli_arms` array
+Same semantics as `bernoulli` but draws from the provided `rng`.
 
-Validation
+#### Dependencies
 
-* No explicit validation in this function. See the Validation section for a safe wrapper if needed
+* `rng` must return a floating point number in `[0, 1)`.
 
----
+## Statistical Implementation
 
-### `bernoulli_pull_arm(arm_id: string, bernoulli_arms_array: BernoulliArm[]): BernoulliPull`
+A Bernoulli trial returns 1 with probability `p` and 0 with probability `1 - p`. The function implements this via a single comparison against a uniform draw.
 
-Simulates a Bernoulli pull for the arm identified by `arm_id`. The function reads probabilities from the passed `bernoulli_arms_array`.
+```ts
+const success = Math.random() <= p; // uniform U in [0, 1)
+```
 
-Behavior
+Over many independent calls the empirical mean of `success` converges to `p`.
 
-1. Validates inputs and looks up the arm by `arm_id`
-2. Computes `won = Math.random() <= arm.win_prob`
-3. Computes `pull_number = bernoulli_pulls.length + 1`
-4. Appends `{ arm_id, pull_number, won }` to `bernoulli_pulls`
-5. Returns the pull record
+## Usage Example
 
-Side effects
+```ts
+import { bernoulli } from "./bernoulli";
 
-* Mutates the exported `bernoulli_pulls` array
-
-Validation
-
-* `arm_id` must be a nonempty string
-* `bernoulli_arms_array` must be an array
-* Throws if the arm is not found
-
-## Examples
-
-Create or refresh an arm and run a few pulls.
-
-```js
-import {
-  bernoulli_arms,
-  bernoulli_pulls,
-  bernoulli_generate_arm,
-  bernoulli_pull_arm
-} from "./bernoulli.js";
-
-const armA = bernoulli_generate_arm("A");
-console.log("Arm A win probability:", armA.win_prob);
-
-for (let i = 0; i < 5; i++) {
-  const res = bernoulli_pull_arm("A", bernoulli_arms);
-  console.log(res); // { arm_id: 'A', pull_number: n, won: true|false }
+if (bernoulli(0.25)) {
+  enableBetaFeature();
+} else {
+  fallbackPath();
 }
-
-console.log("Total pulls:", bernoulli_pulls.length);
 ```
 
-Reset state for a fresh experiment.
+With dependency injection:
 
-```js
-bernoulli_arms.length = 0;
-bernoulli_pulls.length = 0;
+```ts
+import { bernoulliWith, RNG } from "./bernoulli";
+
+const seededRng: RNG = makeSeededRng(42); // your implementation
+const chooseA = bernoulliWith(seededRng, 0.5);
 ```
 
-## Validation helpers
+## Input Validation
 
-If you need strict checks during arm creation use a wrapper.
+Enforce parameter bounds in production or only in development.
 
-```js
-function safe_generate_arm(arm_id) {
-  if (typeof arm_id !== "string" || !arm_id.trim()) {
-    throw new Error("arm_id must be a nonempty string");
+```ts
+export function bernoulli(win_prob: number) {
+  if (!Number.isFinite(win_prob) || win_prob < 0 || win_prob > 1) {
+    throw new RangeError("win_prob must be a finite number in [0, 1]");
   }
-  return bernoulli_generate_arm(arm_id);
+  return Math.random() <= win_prob;
 }
 ```
 
-## Deterministic testing
+## Data Shape
 
-This module uses `Math.random`. For reproducible tests monkey patch `Math.random` and restore it after the test.
+There is no persisted state. The function returns a plain boolean. If you integrate this into analytics, store outcomes as `0 or 1` when numeric aggregation is needed.
 
-```js
-const originalRandom = Math.random;
-Math.random = () => 0.42;
+## Performance
 
-const arm = bernoulli_generate_arm("T"); // win_prob = 0.42 * 0.98 + 0.01
-const res = bernoulli_pull_arm("T", bernoulli_arms); // won = 0.42 <= win_prob
-
-Math.random = originalRandom;
-```
-
-## Performance notes
-
-* `bernoulli_generate_arm` uses `findIndex` on `bernoulli_arms` which is O(n)
-* `bernoulli_pull_arm` uses `find` on the provided arms array which is O(n)
-* Appending to `bernoulli_pulls` is O(1) amortized
-
-For many arms consider an index map `{ [arm_id]: number }` that points into `bernoulli_arms`.
-
-## State management tips
-
-* The arrays are module level singletons. Multiple imports in one process share the same state
-* `pull_number` counts globally across all arms. For per arm counters track a separate map
-
-## Safety and randomness
-
-* `Math.random` is not cryptographically secure. The code targets simulation and demos
+The function performs one random draw and one comparison. Time complexity is O(1) and memory overhead is negligible, suitable for tight loops.
 
 ## Limitations
 
-* No persistence
-* No concurrency control
-* No public API to remove arms or set a fixed probability
+1. `Math.random()` is implementation dependent and not cryptographically secure. Do not use this for security sensitive logic. For crypto grade randomness use Web Crypto `crypto.getRandomValues`.
+2. Independence and distribution quality depend on the underlying RNG.
+3. No built in seeding in standard JS. Use `bernoulliWith` plus a seeded RNG for reproducibility.
 
-## Future extensions
+## Summary
 
-* Add a pure function variant that accepts and returns state
-* Add helpers to reset state and delete arms
-* Add statistics utilities for conversion rate per arm
+* `bernoulli` implements a single Bernoulli trial that returns a boolean.
+* Use `bernoulliWith` when you need deterministic behavior.
+* Validate inputs and treat outputs as `0 or 1` when aggregating statistics.
+* Suitable for feature flags, simulation, A or B branching, and lightweight stochastic control.

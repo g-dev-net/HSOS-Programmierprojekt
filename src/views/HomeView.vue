@@ -6,10 +6,16 @@ import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
 import { generateBernoulliParam, generateGaussianParam } from '@/assets/utils/banditHelpers';
 import type { selectedStock, Stock } from '@/types/bandits';
+import MainTable from '@/components/MainTable.vue';
+import router from '@/router';
+import { useAlgorithmStore } from '@/stores/algorithms';
+import type { Header, Row } from '@/types/table';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
+const algorithmStore = useAlgorithmStore();
 const stockList = stocks as Stock[];
+type BanditKey = (typeof banditStore.bandits)[number]['key'];
 initializePortfolio();
 
 function initializePortfolio() {
@@ -47,10 +53,22 @@ const gaussianTheory = [
 ];
 
 const theoryContent = computed<string[]>(() => (activeBandit.value === 'gaussian' ? gaussianTheory : bernoulliTheory));
+function onBanditChange(banditKey: BanditKey) {
+  if (banditStore.banditInProgress) {
+    alert('Der Bandit läuft bereits. Bitte setzen Sie den Bandit zurück, um den Algorithmus zu wechseln.');
+    return;
+  }
+  banditStore.activeBandit = banditKey;
+}
 
+function onCompareAlgorithms() {
+  router.push('/algo')
+}
 
 // ----------------------- stock management modal -----------------------
 const showStockManager = ref(false);
+// ----------------------- instructions modal -----------------------
+const showInstructionModal = ref(false);
 // open stock manager modal
 function onEditStock() {
   showStockManager.value = true;
@@ -111,7 +129,23 @@ function onInvest(stock: selectedStock) {
   }
   
   // Trigger bandit algorithm
-  banditStore.pullArm(activeBandit.value, stock)
+  banditStore.pullArm(banditStore.activeBandit, stock)
+}
+
+const tableHeaders: Ref<Header[]> = computed(() => {
+  if (banditStore.activeBandit === 'bernoulli') {
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'banditResult': "Gewonnen"}] as Header[];
+  } else if (banditStore.activeBandit === 'gaussian') {
+    return [{'x': "Investment"}, {'stock': "Aktie"}, {'portfolioValue': "Portfolio-Stand"}, {'banditResult': "Ergebnis (€)"}] as Header[];
+  } else {
+    return [] as Header[];
+  }
+});
+const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
+
+const resetBandit = () => {
+  banditStore.resetBandit();
+  algorithmStore.resetAlgorithms();
 }
 
 </script>
@@ -121,17 +155,19 @@ function onInvest(stock: selectedStock) {
     <!-- Headbar -->
     <div class="main-home-headbar">
       <div class="text-nav-button-group">
-        <div v-for="bandit in bandits" class="text-nav-button" :key="bandit.key"
-          :class="{ active: activeBandit === bandit.key }" @click="activeBandit = bandit.key">
+        <div v-for="bandit in banditStore.bandits" class="text-nav-button" :key="bandit.key"
+          :class="{ active: banditStore.activeBandit === bandit.key }" @click="onBanditChange(bandit.key)">
           {{ bandit.name }}
         </div>
       </div>
-      <div class="main-home-headbar-theory-button">
-        <div>
-          Theorie
-        </div>
-        <span class="material-symbols-outlined">open_in_new</span>
-      </div>
+      <button
+        type="button"
+        class="main-home-headbar-theory-button"
+        @click="showInstructionModal = true"
+      >
+        <span>Anleitung</span>
+        <span class="material-symbols-outlined">info</span>
+      </button>
     </div>
     <!-- Content -->
     <div class="home-view-content">
@@ -139,17 +175,37 @@ function onInvest(stock: selectedStock) {
       <div class="main-home-view">
         <div class="diagramm-headbar">
           <div class="portfolio-box">
-            <div class="portfolio-box-title">
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
               Portfolio
             </div>
-            <div class="portfolio-box-title">
-              10.000€
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit === 'bernoulli'">
+              Investments
             </div>
-            <div class="portfolio-box-subtitle">
-              <span class="material-symbols-outlined">
-                arrow_upward
+            <div class="portfolio-box-title" v-if="banditStore.activeBandit !== 'bernoulli'">
+              {{ Math.round(banditStore.currentCapital * 100) / 100 }} €
+            </div>
+            <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'bernoulli'">
+              Gewonnen: {{ banditStore.bernoutliPortfolioSubtitle }} ({{ ((banditStore.bernoutliPortfolioSubtitle / banditStore.investments.length) * 100) | 0}} %)
+            </div>
+            <div class="portfolio-box-subtitle" v-if="banditStore.activeBandit === 'gaussian'">
+              <span class="material-symbols-outlined" style="color: green;" v-if="banditStore.gaussianPortfolioSubtitle > 0">
+                north_east
               </span>
-              200€(2%)
+              <span class="material-symbols-outlined" v-if="banditStore.gaussianPortfolioSubtitle == 0">
+                east
+              </span>
+              <span class="material-symbols-outlined" style="color: red;" v-if="banditStore.gaussianPortfolioSubtitle < 0">
+                south_east
+              </span>
+              &nbsp;
+              {{ banditStore.gaussianPortfolioSubtitle }} €
+              (
+                {{
+                  banditStore.investments.length > 0
+                    ? (((banditStore.currentCapital - banditStore.startingCapital) / banditStore.startingCapital) * 100).toFixed(1) + ' %'
+                    : '0 %'
+                }}
+              )
             </div>
           </div>
           <div class="capital-box">
@@ -166,7 +222,7 @@ function onInvest(stock: selectedStock) {
                 Restkapital:
               </div>
               <div>
-                {{ banditStore.remainingCapital }} €
+                {{ Math.round(banditStore.remainingCapital * 100) / 100 }} €
               </div>
             </div>
             <div class="capital-box-row">
@@ -183,24 +239,23 @@ function onInvest(stock: selectedStock) {
                 </button>
               </div>
             </div>
-            <div class="capital-box-row">
+            <!-- <div class="capital-box-row">
               <div>
                 Per Investment:
               </div>
               <div>
-                {{ banditStore.investmentStep }} €
+                {{ Math.round(banditStore.investmentStep * 100) / 100 }}
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <!-- <MainChart :data="[0, 200, 400, 300, 0. -200, -100, 100, 0]" /> -->
-          Diagramm 
+          <MainChart :data="banditStore.displayData" :activeBandit="banditStore.activeBandit"/>
         </div>
           <!-- Hier die Tabelle für den Bandit-->
         <div class="table">
-          Tabelle
+          <MainTable :headers="tableHeaders" :rows="tableRows"></MainTable>
         </div>
         <!-- Hier aufklapp ding für die Theorie  -->
         <div class="theory-section">
@@ -225,7 +280,7 @@ function onInvest(stock: selectedStock) {
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
             <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+            <button class="white-button button-red" @click="resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
           </div>
           <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
             <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
@@ -233,14 +288,32 @@ function onInvest(stock: selectedStock) {
               <div class="portfolio-item-title">{{ selectedStock.stock.name }}</div>
               <div class="portfolio-item-price">{{ selectedStock.stock.price }} €</div>
             </div>
-            <button class="portfolio-item-button" @click="onInvest(selectedStock)">
+            <button class="portfolio-item-button" @click="onInvest(selectedStock)" :disabled="!banditStore.isInvestmentPossible">
               Investieren
             </button>
+          </div>
+          <div class="sidebar-portfolio-controls">
+            <button class="white-button" @click="onCompareAlgorithms">Vergleich mit weiteren Algorithmen</button>
           </div>
         </div>
       </div>
     </div>
   </div>
+  <Modal
+    v-model="showInstructionModal"
+    :close-on-backdrop="true"
+    :close-on-esc="true"
+  >
+    <template #header>
+      <h2 class="modal__title">Anleitung</h2>
+    </template>
+    <div class="instruction-modal-content">
+      <p>Hier wird die Anleitung angezeigt.</p>
+    </div>
+    <template #footer>
+      <button class="white-button" type="button" @click="showInstructionModal = false">Schließen</button>
+    </template>
+  </Modal>
   <Modal v-model="showStockManager" :close-on-backdrop="true" :close-on-esc="true">
     <template #header>
       <h2 class="modal_stockManager_title">Portfolio bearbeiten</h2>
@@ -329,6 +402,11 @@ function onInvest(stock: selectedStock) {
   cursor: pointer;
   font-weight: bold;
   font-size: x-large;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0;
+  font-family: inherit;
 }
 
 /* Main Content */
@@ -364,7 +442,6 @@ function onInvest(stock: selectedStock) {
 .diagramm-headbar {
   display: flex;
   justify-content: space-between;
-  align-items: end;
   margin-bottom: 1rem;
 }
 
@@ -378,7 +455,7 @@ function onInvest(stock: selectedStock) {
   font-size: x-large;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: start;
   flex-direction: row;
 }
 
@@ -452,6 +529,26 @@ function onInvest(stock: selectedStock) {
 }
 
 
+.table {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-top: 1rem;
+}
+
+.table::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+}
+
+.table::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
 /* Sidebar */
 .sidebar-portfolio {
   width: 100%;
@@ -505,6 +602,11 @@ function onInvest(stock: selectedStock) {
   opacity: 0.7;
 }
 
+.portfolio-item-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .portfolio-item-checkbox {
   margin-right: 1rem;
   cursor: pointer;
@@ -514,6 +616,7 @@ function onInvest(stock: selectedStock) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 1rem;
   margin-bottom: 1rem;
   width: 100%;
 }

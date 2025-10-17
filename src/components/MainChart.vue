@@ -1,69 +1,75 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import * as d3 from 'd3'
+import type { DisplayDataPoint } from '@/types/investment'
 
-const props = defineProps({
-  data: {
-    type: Array,
-    required: true
+const props = withDefaults(defineProps<{
+  data: DisplayDataPoint[]
+  activeBandit: string
+  height?: number
+}>(), {
+  height: 360,
+})
+
+const chartData = computed(() => 
+  props.data.map((point) => ({ x: point.x, y: point.y }))
+)
+
+const yAxisTitle = computed(() => {
+  return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
+})
+
+const dataPointCount = computed(() => props.data.length)
+
+const axisInterval = computed(() => {
+  const targetTickCount = 10
+  const interval = Math.ceil(dataPointCount.value / targetTickCount)
+
+  return interval > 1 ? interval : 1
+})
+
+const animationsEnabled = computed(() => dataPointCount.value < 400)
+
+const options = computed(() => ({
+  animationEnabled: animationsEnabled.value,
+  backgroundColor: "transparent",
+  axisX:{
+    title: "Investments",
+    titleFontColor: "white",
+    labelTextAlign: "center",
+    lineColor: "white",
+    tickColor: "white",
+    labelFontColor: "white",
+    interval: axisInterval.value,
+    minimum: 0,
   },
-  width: {
-    type: Number,
-    default: 900
+  axisY: {
+    title: yAxisTitle.value,
+    titleFontColor: "white",
+    lineColor: "white",
+    tickColor: "white",
+    gridColor: "gray",
+    gridDashType: "dash",
+    labelFontColor: "white",
   },
-  height: {
-    type: Number,
-    default: 500
-  }
-})
+  data: [{
+    type: "line",
+    lineColor: "white",
+    lineThickness: 3,
+    markerColor: "white",
+    dataPoints: chartData.value
+  }]
+}))
 
-const padding = 10
-
-const rangeX = computed(() => {
-  const w = props.width - padding
-  return [0, w]
-})
-
-const rangeY = computed(() => {
-  const h = props.height - padding
-  return [0, h]
-})
-
-const pathGen = computed(() => {
-  const x = d3.scaleLinear().range(rangeX.value)
-  const y = d3.scaleLinear().range(rangeY.value)
-
-  //@ts-ignore
-  x.domain(d3.extent(props.data, (_d, i) => i))
-  //@ts-ignore
-  y.domain([0, d3.max(props.data, d => d)])
-
-  return d3.line()
-    .x((_d, i) => x(i))
-    //@ts-ignore
-    .y(d => y(d))
-})
-
-//@ts-ignore
-const line = computed(() => pathGen.value(props.data))
-
-const viewBox = computed(() => `0 0 ${props.width} ${props.height}`)
+const styleOptions = computed(() => ({
+  width: '100%',
+  height: `${props.height}px`,
+}))
 </script>
 
 <template>
-  <svg class="line-chart" :viewBox="viewBox">
-    <g transform="translate(0, 10)">
-      <path class="line-chart__line" :d="line" />
-    </g>
-  </svg>
+  <CanvasJSChart :options="options" :style="styleOptions" />
 </template>
 
 <style scoped>
-.line-chart {
-    margin: 25px;
-    fill: none;
-    stroke: #76BF8A;
-    stroke-width: 3px;
-}
 
 </style>
