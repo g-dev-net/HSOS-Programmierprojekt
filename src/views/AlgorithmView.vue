@@ -1,4 +1,3 @@
-<!-- src/views/AlgorithmView.vue -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onMounted, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
@@ -158,31 +157,24 @@ watch([activeTheory, theoryModalVisible], async () => {
         <template v-if="activeTheory && activeTheory.id === 'ucb'">
           <h3 style="margin:.2rem 0 .35rem;">Kernprinzip</h3>
           <p style="margin:.25rem 0;">
-            Upper Confidence Bound vergibt pro Arm in Runde \(t\) einen Optimisten Index.
+            Upper Confidence Bound berechnet in Runde \(t\) für jeden Arm \(i\) einen UCB-Index.
           </p>
 
           <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\mathrm{Bonus}_t(i)" />
 
           <p style="margin:.25rem 0;">
-            \(\hat{\mu}_t(i)\) ist der aktuelle Schätzwert der durchschnittlichen Belohnung. Der Bonus ist eine Obergrenze auf die Unsicherheit. Gewählt wird der Arm mit dem größten Index. Arme mit wenigen Beobachtungen erhalten größere Boni und werden dadurch erkundet. Gut bekannte Arme werden eher ausgenutzt.
-          </p>
-          <p style="margin:.25rem 0;">
-            Intuition: Optimismus im Angesicht von Unsicherheit. Mit mehr Daten sinkt der Bonus und der Index konvergiert gegen den Schätzwert.
+            \(\hat{\mu}_t(i)\) ist der aktuelle Schätzwert der durchschnittlichen Belohnung. \(\mathrm{Bonus}_t(i)\) ist der Konfidenzbonus, also der Aufschlag oberhalb des Schätzwerts. Der Bonus ist nicht die Obergrenze selbst, sondern der Abstand zwischen \(\hat{\mu}_t(i)\) und dem UCB-Index. Der Arm mit dem größten UCB-Index wird gezogen. Arme mit wenigen Beobachtungen erhalten größere Boni und werden dadurch häufiger ausprobiert. Gut bekannte Arme werden eher ausgenutzt. Mit mehr Daten schrumpft der Bonus und der UCB-Index nähert sich dem Schätzwert an.
           </p>
 
           <h3 style="margin:.4rem 0 .3rem;">Konkrete Bonusformeln</h3>
 
           <h4 style="margin:.2rem 0 .2rem;">Bernoulli Belohnungen in \([0,1]\)</h4>
-          <p style="margin:.2rem 0;">Hoeffding basierte Form:</p>
           <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\ln t}{n_i(t)}}" />
-          <p style="margin:.2rem 0;">
-            Der Bonus wächst nur logarithmisch mit der Zeit und schrumpft proportional zu \(1/\sqrt{n_i(t)}\).
-          </p>
+          <p style="margin:.2rem 0;">Gilt für Belohnungen im Intervall \([0,1]\).</p>
 
           <h4 style="margin:.35rem 0 .2rem;">Gaussian Belohnungen mit bekannter \(\sigma\)</h4>
-          <p style="margin:.2rem 0;">Normalverteilte Belohnungen:</p>
           <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\sigma^{2}\ln t}{n_i(t)}}" />
-          <p style="margin:.2rem 0;">Höhere Streuung führt zu größeren Boni.</p>
+          <p style="margin:.2rem 0;">\(\sigma\) berücksichtigt die Streuung der Normalverteilung und skaliert die Unsicherheit.</p>
 
           <h3 style="margin:.45rem 0 .25rem;">Ablauf</h3>
           <ol style="margin:.2rem 0; padding-left:1rem;">
@@ -195,12 +187,12 @@ watch([activeTheory, theoryModalVisible], async () => {
                 <li>Belohnung beobachten und \(\hat{\mu}_t(i)\) sowie \(n_i(t)\) aktualisieren</li>
               </ul>
             </li>
-            <li><strong>Stopp</strong>: Sobald alle Investments durchgeführt worden sind, endet der Prozess.</li>
+            <li><strong>Stopp</strong>: Sobald alle Investments durchgeführt sind, endet der Prozess.</li>
           </ol>
 
-          <h3 style="margin:.45rem 0 .25rem;">Warum das wirkt</h3>
+          <h3 style="margin:.45rem 0 .25rem;">Warum funktioniert das?</h3>
           <p style="margin:.25rem 0;">
-            Der Bonus ist so gewählt, dass die wahre Armqualität mit hoher Wahrscheinlichkeit unter der Obergrenze liegt. Das Maximieren des \(\mathrm{UCB}\) begrenzt suboptimale Ausnutzung und erzwingt Exploration genau dort, wo Unsicherheit vorliegt. Das führt in klassischen Multi Armed Bandit Einstellungen zu Regret Schranken mit logarithmischem Zeitwachstum.
+            Der UCB-Index ist so konstruiert, dass die wahre mittlere Armqualität mit hoher Wahrscheinlichkeit unter dieser oberen Konfidenzgrenze liegt. Durch das Maximieren des \(\mathrm{UCB}\) wird suboptimale Ausnutzung begrenzt und Exploration genau dort erzwungen, wo Unsicherheit hoch ist. In klassischen Multi Armed Bandit Einstellungen führt das zu Regret-Schranken mit logarithmischem Zeitwachstum.
           </p>
 
           <p class="theory-source">
