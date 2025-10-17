@@ -4,6 +4,7 @@ import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import CompareChartReward from '@/components/CompareChartReward.vue';
+import CompareChartAccuracy from '@/components/CompareChartAccuracy.vue';
 import Modal from '@/components/Modal.vue';
 import MathTex from '@/components/MathTex.vue';
 import renderMathInElement from 'katex/contrib/auto-render';
@@ -59,8 +60,17 @@ interface EvaluationDisplayItem {
   hasData: boolean;
 }
 
+interface EvaluationChartSeriesItem {
+  name: string;
+  color: string;
+  visible: boolean;
+  percentages: number[];
+}
+
+const evaluationSeries = computed(() => algorithms_evaluation());
+
 const evaluationResults = computed<EvaluationDisplayItem[]>(() =>
-  algorithms_evaluation().map(({ algorithm, percentages }) => {
+  evaluationSeries.value.map(({ algorithm, percentages }) => {
     const meta = evaluationMetadata[algorithm];
     const lastValue = percentages.length > 0 ? percentages[percentages.length - 1] : null;
     const hasData = typeof lastValue === 'number' && !Number.isNaN(lastValue);
@@ -83,6 +93,24 @@ const evaluationResultsWithData = computed(() =>
 
 const evaluationSeriesHasData = computed(() =>
   evaluationResultsWithData.value.length > 0
+);
+
+const evaluationChartSeries = computed<EvaluationChartSeriesItem[]>(() =>
+  evaluationSeries.value
+    .map(({ algorithm, percentages }) => {
+      const meta = evaluationMetadata[algorithm];
+      if (!percentages || percentages.length === 0) {
+        return null;
+      }
+
+      return {
+        name: meta?.label ?? algorithm,
+        color: meta?.color ?? '#999999',
+        visible: meta?.toggleRef ? meta.toggleRef.value : true,
+        percentages
+      };
+    })
+    .filter((item): item is EvaluationChartSeriesItem => item !== null)
 );
 
 const activeTheory = ref<AlgorithmToggle | null>(null);
@@ -174,11 +202,11 @@ function formatSelectedArmValue(value: number) {
 
     <!-- Content -->
     <div class="home-view-content">
-      <div class="main-home-view">
-        <div class="diagramm" ref="diagrammRef">
-          <CompareChartReward
-            :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
-            :dataGreedy="algorithmStore.greedyDataPoints"
+        <div class="main-home-view">
+          <div class="diagramm" ref="diagrammRef">
+            <CompareChartReward
+              :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
+              :dataGreedy="algorithmStore.greedyDataPoints"
             :dataThompson="algorithmStore.thompsonSamplingDataPoints"
             :dataUser="banditStore.displayData"
             :dataEGreedy="algorithmStore.eGreedyDataPoints"
@@ -190,14 +218,20 @@ function formatSelectedArmValue(value: number) {
             :showThompson="showThompson"
             :showUCB="showUCB"
             :showEGreedy="showEGreedy"
-            :showOIV="showOIV"
-            :showGradient="showGradient"
-          />
+              :showOIV="showOIV"
+              :showGradient="showGradient"
+            />
+          </div>
+          <div
+            v-if="evaluationChartSeries.length > 0"
+            class="diagramm diagramm--evaluation"
+          >
+            <CompareChartAccuracy :series="evaluationChartSeries" />
+          </div>
         </div>
-      </div>
 
-      <!-- Sidebar -->
-      <div class="sidebar-home-view">
+        <!-- Sidebar -->
+        <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
           <h3>Einstellungen</h3>
           <div class="algorithm-toggle-group">
@@ -247,31 +281,6 @@ function formatSelectedArmValue(value: number) {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div class="sidebar-evaluation">
-            <h3>Trefferquoten</h3>
-            <p v-if="!evaluationSeriesHasData" class="evaluation-empty">
-              Noch keine Auswertungen vorhanden.
-            </p>
-            <ul v-else class="evaluation-list">
-              <li
-                v-for="item in evaluationResultsWithData"
-                :key="item.algorithm"
-                class="evaluation-item"
-                :class="{ 'evaluation-item--inactive': !item.active }"
-              >
-                <span class="evaluation-name" :style="{ color: item.color }">
-                  {{ item.label }}
-                </span>
-                <span class="evaluation-value">
-                  {{ item.valueDisplay }}
-                </span>
-              </li>
-            </ul>
-            <p v-if="evaluationSeriesHasData" class="evaluation-hint">
-              Werte: kumulative Trefferquote gegenüber dem besten Arm.
-            </p>
           </div>
         </div>
       </div>
@@ -425,6 +434,11 @@ function formatSelectedArmValue(value: number) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.diagramm--evaluation {
+  aspect-ratio: auto;
+  min-height: 0;
 }
 
 .headbar-title {

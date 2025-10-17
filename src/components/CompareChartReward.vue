@@ -132,6 +132,14 @@ const animationsEnabled = computed(() => maxDataPoints.value < 400)
 const options = computed(() => ({
   animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
+  title:{
+			text: "Rewards im Vergleich",
+      fontColor: 'white',
+      fontFamily: 'Arial',
+      fontWeight: 'bold',
+      margin: 5,
+      fontSize: 20
+	},
   legend: {
     fontColor: "white",
     horizontalAlign: "right",
