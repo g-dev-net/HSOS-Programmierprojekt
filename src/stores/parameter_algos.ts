@@ -1,4 +1,3 @@
-
 import { useAlgorithmStore } from '@/stores/algorithms';
 
 // Custom Map mit geschützten Default-Keys
