@@ -34,7 +34,7 @@
 
           <footer class="modal__footer">
             <slot name="footer">
-              <button class="white-button" type="button" @click="close()">Close</button>
+              <button class="white-button" type="button" @click="close()">Zurück</button>
             </slot>
           </footer>
         </div>

@@ -1,10 +1,13 @@
+<!-- src/views/AlgorithmView.vue -->
 <script setup lang="ts">
-import { computed, onBeforeMount, ref } from 'vue';
+import { computed, nextTick, onBeforeMount, onMounted, ref, watch } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import CompareChartReward from '@/components/CompareChartReward.vue';
 import Modal from '@/components/Modal.vue';
+import MathTex from '@/components/MathTex.vue';
+import renderMathInElement from 'katex/contrib/auto-render';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -35,9 +38,7 @@ const activeTheory = ref<AlgorithmToggle | null>(null);
 const theoryModalVisible = computed({
   get: () => activeTheory.value !== null,
   set: (value: boolean) => {
-    if (!value) {
-      activeTheory.value = null;
-    }
+    if (!value) activeTheory.value = null;
   }
 });
 
@@ -46,34 +47,55 @@ function openTheoryModal(toggle: AlgorithmToggle) {
 }
 
 function onNavBack() {
-  router.push('/')
+  router.push('/');
 }
 
 onBeforeMount(() => {
   if (!algorithmStore.algorithmsCompleted && banditStore.banditInProgress) {
     algorithmStore.runAlgorithms();
   }
-})
+});
 
+// KaTeX Inline Render im Modal
+const theoryContentRef = ref<HTMLElement | null>(null);
+
+function renderInlineMath() {
+  if (!theoryContentRef.value) return;
+  renderMathInElement(theoryContentRef.value, {
+    delimiters: [
+      { left: '\\(', right: '\\)', display: false },
+      { left: '\\[', right: '\\]', display: true },
+      { left: '$$', right: '$$', display: true }
+    ],
+    throwOnError: false
+  });
+}
+
+onMounted(() => {
+  renderInlineMath();
+});
+
+watch([activeTheory, theoryModalVisible], async () => {
+  await nextTick();
+  renderInlineMath();
+});
 </script>
 
 <template>
   <div class="home-view">
     <!-- Headbar -->
     <div class="main-home-headbar">
-      <button class="white-button navBackButton" @click="onNavBack">Zurück</button>
+      <RouterLink class="white-button navBackButton" to="/">Zurück</RouterLink>
       <div class="headbar-title">Vergleich mit Algorithmen</div>
     </div>
+
     <!-- Content -->
     <div class="home-view-content">
-      <!-- Main Content -->
       <div class="main-home-view">
-        
-        <!-- Hier das Diagramm für den Bandit -->
         <div class="diagramm" ref="diagrammRef">
-          <CompareChartReward 
+          <CompareChartReward
             :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
-            :dataGreedy="algorithmStore.greedyDataPoints" 
+            :dataGreedy="algorithmStore.greedyDataPoints"
             :dataThompson="algorithmStore.thompsonSamplingDataPoints"
             :dataUser="banditStore.displayData"
             :dataEGreedy="algorithmStore.eGreedyDataPoints"
@@ -90,6 +112,7 @@ onBeforeMount(() => {
           />
         </div>
       </div>
+
       <!-- Sidebar -->
       <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
@@ -117,24 +140,113 @@ onBeforeMount(() => {
         </div>
       </div>
     </div>
+
+    <!-- Theorie Modal -->
+    <Modal
+      v-model="theoryModalVisible"
+      :close-on-backdrop="true"
+      :close-on-esc="true"
+    >
+      <template #header>
+        <h2 class="modal__title">
+          Theorie • {{ activeTheory ? activeTheory.theoryTitle : '' }}
+        </h2>
+      </template>
+
+      <div class="theory-modal-content" ref="theoryContentRef">
+        <!-- UCB -->
+        <template v-if="activeTheory && activeTheory.id === 'ucb'">
+          <h3 style="margin:.2rem 0 .35rem;">Kernprinzip</h3>
+          <p style="margin:.25rem 0;">
+            Upper Confidence Bound vergibt pro Arm in Runde \(t\) einen Optimisten Index.
+          </p>
+
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\mathrm{Bonus}_t(i)" />
+
+          <p style="margin:.25rem 0;">
+            \(\hat{\mu}_t(i)\) ist der aktuelle Schätzwert der durchschnittlichen Belohnung. Der Bonus ist eine Obergrenze auf die Unsicherheit. Gewählt wird der Arm mit dem größten Index. Arme mit wenigen Beobachtungen erhalten größere Boni und werden dadurch erkundet. Gut bekannte Arme werden eher ausgenutzt.
+          </p>
+          <p style="margin:.25rem 0;">
+            Intuition: Optimismus im Angesicht von Unsicherheit. Mit mehr Daten sinkt der Bonus und der Index konvergiert gegen den Schätzwert.
+          </p>
+
+          <h3 style="margin:.4rem 0 .3rem;">Konkrete Bonusformeln</h3>
+
+          <h4 style="margin:.2rem 0 .2rem;">Bernoulli Belohnungen in \([0,1]\)</h4>
+          <p style="margin:.2rem 0;">Hoeffding basierte Form:</p>
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\ln t}{n_i(t)}}" />
+          <p style="margin:.2rem 0;">
+            Der Bonus wächst nur logarithmisch mit der Zeit und schrumpft proportional zu \(1/\sqrt{n_i(t)}\).
+          </p>
+
+          <h4 style="margin:.35rem 0 .2rem;">Gaussian Belohnungen mit bekannter \(\sigma\)</h4>
+          <p style="margin:.2rem 0;">Normalverteilte Belohnungen:</p>
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\sigma^{2}\ln t}{n_i(t)}}" />
+          <p style="margin:.2rem 0;">Höhere Streuung führt zu größeren Boni.</p>
+
+          <h3 style="margin:.45rem 0 .25rem;">Ablauf</h3>
+          <ol style="margin:.2rem 0; padding-left:1rem;">
+            <li><strong>Initialisierung</strong>: Jeden Arm mindestens einmal ziehen, damit \(\hat{\mu}_t(i)\) und \(n_i(t)\) definiert sind.</li>
+            <li><strong>Iterative Auswahl</strong>:
+              <ul style="margin:.1rem 0; padding-left:1rem;">
+                <li>\(\hat{\mu}_t(i)\) schätzen und \(n_i(t)\) zählen</li>
+                <li>\(\mathrm{UCB}_t(i)\) pro Arm berechnen</li>
+                <li>Arm mit maximalem \(\mathrm{UCB}_t(i)\) wählen</li>
+                <li>Belohnung beobachten und \(\hat{\mu}_t(i)\) sowie \(n_i(t)\) aktualisieren</li>
+              </ul>
+            </li>
+            <li><strong>Stopp</strong>: Sobald alle Investments durchgeführt worden sind, endet der Prozess.</li>
+          </ol>
+
+          <h3 style="margin:.45rem 0 .25rem;">Warum das wirkt</h3>
+          <p style="margin:.25rem 0;">
+            Der Bonus ist so gewählt, dass die wahre Armqualität mit hoher Wahrscheinlichkeit unter der Obergrenze liegt. Das Maximieren des \(\mathrm{UCB}\) begrenzt suboptimale Ausnutzung und erzwingt Exploration genau dort, wo Unsicherheit vorliegt. Das führt in klassischen Multi Armed Bandit Einstellungen zu Regret Schranken mit logarithmischem Zeitwachstum.
+          </p>
+
+          <p class="theory-source">
+            Quelle: Russo, Van Roy, Kazerouni, Osband, Wen. A Tutorial on Thompson Sampling, 2018.
+          </p>
+        </template>
+
+        <!-- Greedy -->
+        <template v-else-if="activeTheory && activeTheory.id === 'greedy'">
+          <p>Hier kommt die Theorie zu Greedy. Kurz: immer den aktuell besten Arm wählen, keine Exploration.</p>
+        </template>
+
+        <!-- Thompson -->
+        <template v-else-if="activeTheory && activeTheory.id === 'thompson'">
+          <p>Hier kommt die Theorie zu Thompson Sampling. Kurz: Posterior ziehen und den Arm mit maximaler gezogener Belohnung spielen.</p>
+        </template>
+
+        <!-- Epsilon-Greedy -->
+        <template v-else-if="activeTheory && activeTheory.id === 'eGreedy'">
+          <p>Hier kommt die Theorie zu Epsilon Greedy. Kurz: mit Wahrscheinlichkeit \(\varepsilon\) explorieren, sonst ausnutzen.</p>
+        </template>
+
+        <!-- OIV -->
+        <template v-else-if="activeTheory && activeTheory.id === 'oiv'">
+          <p>Hier kommt die Theorie zu Optimistic Initial Values. Kurz: optimistische Startwerte forcen frühe Exploration.</p>
+        </template>
+
+        <!-- Gradient Bandit -->
+        <template v-else-if="activeTheory && activeTheory.id === 'gradient'">
+          <p>Hier kommt die Theorie zu Gradient Bandit. Kurz: Präferenzen updaten, Softmax Policy über Präferenzen.</p>
+        </template>
+
+        <!-- Nutzerergebnis -->
+        <template v-else-if="activeTheory && activeTheory.id === 'user'">
+          <p>Hier erklärst du das Nutzerergebnis und wie es mit den Algorithmen verglichen wird.</p>
+        </template>
+
+        <!-- Fallback -->
+        <template v-else>
+          <p>Der theoretische Inhalt wird hier bald verfügbar sein.</p>
+        </template>
+      </div>
+    </Modal>
   </div>
-  <Modal
-    v-model="theoryModalVisible"
-    :close-on-backdrop="true"
-    :close-on-esc="true"
-  >
-    <template #header>
-      <h2 class="modal__title">
-        Theorie - {{ activeTheory ? activeTheory.theoryTitle : '' }}
-      </h2>
-    </template>
-    <div class="theory-modal-content">
-      <p v-if="activeTheory">
-        Der theoretische Inhalt zu {{ activeTheory.label }} wird hier bald verfügbar sein.
-      </p>
-    </div>
-  </Modal>
 </template>
+
 <style scoped>
 /* Base layout */
 .home-view {
@@ -147,11 +259,9 @@ onBeforeMount(() => {
 .main-home-view {
   flex: 3;
   padding: 1rem;
-  /* background-color: aqua; */
 }
 
 .sidebar-home-view {
-  /* background-color: lightpink; */
   flex: 1;
   padding: 1rem;
   border-left: 1px solid var(--border);
@@ -175,6 +285,7 @@ onBeforeMount(() => {
 
 .navBackButton {
   height: fit-content;
+  text-decoration: none;
 }
 
 .diagramm {
@@ -244,5 +355,14 @@ onBeforeMount(() => {
   gap: 0.75rem;
 }
 
+.theory-source {
+  margin-top: .35rem;
+  font-size: .9rem;
+  color: var(--muted, #666);
+}
 
+/* Schutz vor Global CSS auf Formeln */
+:deep(.katex) {
+  line-height: normal;
+}
 </style>
