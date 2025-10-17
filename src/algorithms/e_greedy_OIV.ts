@@ -65,9 +65,8 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreed
             best_arm_index = Math.floor(Math.random() * stock.length);
         }
         else {
-            // set comparison-value to first so it can be compared
-            // ! Necessary bc the set value has changed in the loop
-            let best_arm_value = 0;
+            // Calculate average for each arm and select the best
+            let best_arm_value = -Infinity;
             best_arm_index = 0;
             for (let i = 0; i < stock.length; i++) {
                 switch (algorithm) {
@@ -92,8 +91,12 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreed
                         break;
                     case 'OIV':
                         stock_investments = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock === stock[i]);
-                        sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0) + param;
-                        avg_result = sum / (stock_investments.length + 1);
+                        if (stock_investments.length === 0) {
+                            avg_result = param; // Optimistic initial value
+                        } else {
+                            sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0);
+                            avg_result = sum / stock_investments.length;
+                        }
                         break;
                 }
 

@@ -17,10 +17,12 @@ The `e_greedy_OIV.ts` module implements three exploration strategies for Multi-A
 ### 1. Greedy (Pure Exploitation)
 
 **Strategy:** Always select the arm with highest average reward  
-**Cold-Start:** All arms initialized with `avg = 0`  
+**Cold-Start:** Untried arms initialized with `avg = 0`, comparison starts at `-Infinity`  
 
 **Behavior:**
-- First arm with positive reward gets selected repeatedly
+- All untried arms get equal chance (avg = 0)
+- After first trial, arm with highest average is selected
+- Works correctly with negative rewards (Gaussian)
 - No exploration after initial selection
 - Fast convergence but may miss better arms
 
@@ -42,7 +44,7 @@ The `e_greedy_OIV.ts` module implements three exploration strategies for Multi-A
 ### 3. Optimistic Initial Values (OIV)
 
 **Strategy:** Initialize all arms with optimistic value (5), encouraging early exploration  
-**Formula:** `avg = (sum_of_rewards + 5) / (count + 1)`
+**Formula:** First trial: `avg = optimistic_value`, afterwards: `avg = sum_of_rewards / count`
 
 **Behavior:**
 - All arms start with high expected value (5)
@@ -70,6 +72,9 @@ The `e_greedy_OIV.ts` module implements three exploration strategies for Multi-A
 ### Average Reward Calculation
 
 ```typescript
+// Initialize comparison value
+let best_arm_value = -Infinity;  // Allows negative averages to win
+
 switch (algorithm) {
     case 'greedy':
         if (stock_investments.length > 0) {
@@ -81,9 +86,19 @@ switch (algorithm) {
         break;
     
     case 'OIV':
-        sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0) + OIV_value;
-        avg_result = sum / (stock_investments.length + 1);  // Include virtual initial value
+        if (stock_investments.length === 0) {
+            avg_result = OIV_value;  // Optimistic initial value
+        } else {
+            sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0);
+            avg_result = sum / stock_investments.length;  // Standard average after first trial
+        }
         break;
+}
+
+// Select best arm
+if (avg_result > best_arm_value) {
+    best_arm_value = avg_result;
+    best_arm_index = i;
 }
 ```
 
@@ -145,7 +160,15 @@ console.log(algorithmStore.investmentsOptimisticInitial);
 
 ## Limitations
 
-1. **Greedy**: No exploration after first positive reward
+1. **Greedy**: No exploration after first trials (all arms tried once in cold-start)
 2. **Epsilon-Greedy**: Fixed ε may not be optimal for all scenarios
-3. **OIV**: Exploration only in early phase, sensitive to initial value choice
+3. **OIV**: Exploration only in early phase, sensitive to initial value choice (default: 5)
 4. **All**: Simple averaging without learning rate or decay mechanisms
+
+## Handling Negative Rewards (Gaussian Bandits)
+
+All algorithms correctly handle negative rewards:
+- **Comparison**: Uses `-Infinity` as initial best value, allowing negative averages to win
+- **Cold-Start**: Untried arms default to `avg = 0`
+- **OIV**: Optimistic value (5) ensures exploration even when all rewards are negative
+- **Selection**: Always picks arm with highest average, regardless of sign
