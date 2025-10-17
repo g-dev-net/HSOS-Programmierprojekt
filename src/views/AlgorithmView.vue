@@ -103,9 +103,12 @@ function onNavBack() {
 }
 
 onBeforeMount(() => {
-  if (!algorithmStore.algorithmsCompleted && banditStore.selectedStocks.length > 0) {
-    algorithmStore.runAlgorithms();
+  if (banditStore.selectedStocks.length === 0) {
+    return;
   }
+
+  algorithmStore.resetAlgorithms();
+  algorithmStore.runAlgorithms();
 });
 
 // KaTeX Inline Render im Modal
