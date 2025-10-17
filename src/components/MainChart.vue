@@ -1,25 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DisplayDataPoint } from '@/types/investment';
+import type { DisplayDataPoint } from '@/types/investment'
 
-
-const props = defineProps({
-  data: {
-    type: Array<DisplayDataPoint>,
-    required: true
-  },
-  width: {
-    type: Number,
-    default: 900
-  },
-  height: {
-    type: Number,
-    default: 500
-  },
-  activeBandit: {
-    type: String,
-    required: true
-  }
+const props = withDefaults(defineProps<{
+  data: DisplayDataPoint[]
+  activeBandit: string
+  height?: number
+}>(), {
+  height: 360,
 })
 
 const chartData = computed(() => 
@@ -30,8 +18,19 @@ const yAxisTitle = computed(() => {
   return props.activeBandit === 'bernoulli' ? 'Gewonnene Investments' : 'Gewinn in €';
 })
 
+const dataPointCount = computed(() => props.data.length)
+
+const axisInterval = computed(() => {
+  const targetTickCount = 10
+  const interval = Math.ceil(dataPointCount.value / targetTickCount)
+
+  return interval > 1 ? interval : 1
+})
+
+const animationsEnabled = computed(() => dataPointCount.value < 400)
+
 const options = computed(() => ({
-  animationEnabled: true,
+  animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
   axisX:{
     title: "Investments",
@@ -40,7 +39,7 @@ const options = computed(() => ({
     lineColor: "white",
     tickColor: "white",
     labelFontColor: "white",
-    interval: 1,
+    interval: axisInterval.value,
     minimum: 0,
   },
   axisY: {
@@ -61,14 +60,14 @@ const options = computed(() => ({
   }]
 }))
 
-const styleOptions = {
-  width: "100%",
-  height: "360px"
-}
+const styleOptions = computed(() => ({
+  width: '100%',
+  height: `${props.height}px`,
+}))
 </script>
 
 <template>
-  <CanvasJSChart :options="options" :style="styleOptions"/>
+  <CanvasJSChart :options="options" :style="styleOptions" />
 </template>
 
 <style scoped>
