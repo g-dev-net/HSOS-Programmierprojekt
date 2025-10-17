@@ -21,20 +21,7 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
 
-    // uniform Policy init - intern Array!!
-    stock.forEach(stock => {
-        algorithmStore.investmentsGradient.push({
-            stock: stock,
-            greedyReturn: null,
-            eGreedyReturn: null,
-            thompsonReturn: null,
-            ucbReturn: null,
-            gradientReturn: 0,
-            optimisticInitialReturn: null,
-            userAlgorithmReturn: null
-        });
-    });
-
+    // Uniform policy initialization - internal only, not stored
     let H: number[] = new Array(stock.length).fill(0);
     let avgReward = 0;
 
