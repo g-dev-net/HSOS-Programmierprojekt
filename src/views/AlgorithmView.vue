@@ -21,13 +21,13 @@ const showOIV = ref(true);
 const showGradient = ref(true);
 
 const algorithmToggles = ref([
-  { id: 'user', label: 'Nutzerergebnis', show: showUser, theoryTitle: 'Nutzerergebnis' },
-  { id: 'greedy', label: 'Greedy Algorithmus', show: showGreedy, theoryTitle: 'Greedy Algorithmus' },
-  { id: 'thompson', label: 'Thompson Sampling', show: showThompson, theoryTitle: 'Thompson Sampling' },
-  { id: 'ucb', label: 'Upper Confidence Bound', show: showUCB, theoryTitle: 'Upper Confidence Bound' },
-  { id: 'eGreedy', label: 'Epsilon-Greedy', show: showEGreedy, theoryTitle: 'Epsilon-Greedy' },
-  { id: 'oiv', label: 'Optimistic Initial Values', show: showOIV, theoryTitle: 'Optimistic Initial Values' },
-  { id: 'gradient', label: 'Gradient Bandit', show: showGradient, theoryTitle: 'Gradient Bandit' },
+  { id: 'user', label: 'Nutzerergebnis', show: showUser, theoryTitle: 'Nutzerergebnis', color: '#ffffff' },
+  { id: 'greedy', label: 'Greedy Algorithmus', show: showGreedy, theoryTitle: 'Greedy Algorithmus', color: '#ff0000' },
+  { id: 'thompson', label: 'Thompson Sampling', show: showThompson, theoryTitle: 'Thompson Sampling', color: '#008000' },
+  { id: 'ucb', label: 'Upper Confidence Bound', show: showUCB, theoryTitle: 'Upper Confidence Bound', color: '#0000ff' },
+  { id: 'eGreedy', label: 'Epsilon-Greedy', show: showEGreedy, theoryTitle: 'Epsilon-Greedy', color: '#ffa500' },
+  { id: 'oiv', label: 'Optimistic Initial Values', show: showOIV, theoryTitle: 'Optimistic Initial Values', color: '#800080' },
+  { id: 'gradient', label: 'Gradient Bandit', show: showGradient, theoryTitle: 'Gradient Bandit', color: '#00ffff' },
 ] as const);
 
 type AlgorithmToggle = typeof algorithmToggles.value[number];
@@ -50,7 +50,7 @@ function onNavBack() {
 }
 
 onBeforeMount(() => {
-  if (!algorithmStore.algorithmsCompleted && banditStore.banditInProgress) {
+  if (!algorithmStore.algorithmsCompleted && banditStore.selectedStocks.length > 0) {
     algorithmStore.runAlgorithms();
   }
 });
@@ -124,7 +124,9 @@ watch([activeTheory, theoryModalVisible], async () => {
             >
               <label class="algorithm-toggle-label">
                 <input type="checkbox" v-model="toggle.show" />
-                {{ toggle.label }}
+                <span class="algorithm-toggle-text" :style="{ color: toggle.color }">
+                  {{ toggle.label }}
+                </span>
               </label>
               <button
                 type="button"
@@ -314,6 +316,10 @@ watch([activeTheory, theoryModalVisible], async () => {
   align-items: center;
   gap: 0.5rem;
   flex: 1;
+}
+
+.algorithm-toggle-text {
+  font-weight: 500;
 }
 
 .algorithm-toggle-row {
