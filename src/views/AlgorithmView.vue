@@ -78,6 +78,34 @@ watch([activeTheory, theoryModalVisible], async () => {
   await nextTick();
   renderInlineMath();
 });
+
+const probabilityLabel = computed(() =>
+  banditStore.activeBandit === 'bernoulli'
+    ? 'Erfolgswahrscheinlichkeit'
+    : 'Erwartete Rendite'
+);
+
+const selectedArmSummaries = computed(() =>
+  banditStore.selectedStocks.map(selected => ({
+    id: selected.stock.id,
+    name: selected.stock.name,
+    logoUrl: selected.stock.logo_url,
+    value:
+      banditStore.activeBandit === 'bernoulli'
+        ? selected.bernoulli_param
+        : selected.gaussian_param,
+  }))
+);
+
+function formatSelectedArmValue(value: number) {
+  if (banditStore.activeBandit === 'bernoulli') {
+    return `${(value * 100).toFixed(1)} %`;
+  }
+
+  const percent = value * 100;
+  const prefix = percent > 0 ? '+' : '';
+  return `${prefix}${percent.toFixed(1)} %`;
+}
 </script>
 
 <template>
@@ -136,6 +164,32 @@ watch([activeTheory, theoryModalVisible], async () => {
               >
                 ?
               </button>
+            </div>
+          </div>
+          <div class="sidebar-selected-arms">
+            <h3>Ausgewählte Arme</h3>
+            <p v-if="selectedArmSummaries.length === 0" class="selected-arm-empty">
+              Keine Arme ausgewählt.
+            </p>
+            <div v-else class="selected-arm-list">
+              <div
+                v-for="arm in selectedArmSummaries"
+                :key="arm.id"
+                class="selected-arm-item"
+              >
+                <img
+                  v-if="arm.logoUrl"
+                  :src="arm.logoUrl"
+                  alt="Logo"
+                  class="selected-arm-logo"
+                />
+                <div class="selected-arm-info">
+                  <div class="selected-arm-name">{{ arm.name }}</div>
+                  <div class="selected-arm-value">
+                    {{ probabilityLabel }}: {{ formatSelectedArmValue(arm.value) }}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -304,6 +358,11 @@ watch([activeTheory, theoryModalVisible], async () => {
   width: 100%;
 }
 
+.sidebar-selected-arms {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
 .algorithm-toggle-group {
   display: flex;
   flex-direction: column;
@@ -357,6 +416,46 @@ watch([activeTheory, theoryModalVisible], async () => {
   margin-top: .35rem;
   font-size: .9rem;
   color: var(--muted, #666);
+}
+
+.selected-arm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.selected-arm-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.selected-arm-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.selected-arm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.selected-arm-name {
+  font-weight: 600;
+}
+
+.selected-arm-value {
+  font-size: 0.9rem;
+  color: whitesmoke;
+}
+
+.selected-arm-empty {
+  font-size: 0.9rem;
+  color: whitesmoke;
+  margin-top: 0.5rem;
 }
 
 /* Schutz vor Global CSS auf Formeln */
