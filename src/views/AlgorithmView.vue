@@ -5,6 +5,7 @@ import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import CompareChartReward from '@/components/CompareChartReward.vue';
 import Modal from '@/components/Modal.vue';
+import { comp_algos_bernoulli, comp_algos_gaussian, restore_saved_state } from '@/algorithms/compare_algos.ts';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -47,6 +48,15 @@ function openTheoryModal(toggle: AlgorithmToggle) {
 
 function onNavBack() {
   router.push('/')
+}
+
+function onCompareManyRuns() {
+  // wenn bernoulli, dann bernoulli, sonst gaussian
+  if (banditStore.activeBandit === 'bernoulli') {
+    comp_algos_bernoulli();
+  } else {
+    comp_algos_gaussian();
+  }
 }
 
 onBeforeMount(() => {
@@ -113,6 +123,9 @@ onBeforeMount(() => {
                 ?
               </button>
             </div>
+          </div>
+          <div class="sidebar-portfolio" style="margin-top: 1rem;">
+            <button class="white-button" @click="onCompareManyRuns">Vergleich viele Investitionen</button>
           </div>
         </div>
       </div>

@@ -14,6 +14,8 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   // --------------------- bandit run logic ---------------------
   const algorithmsInProgress = ref(false)
   const algorithmsCompleted = ref(false)
+  const algorithmsCompare = ref(false)
+  const optimalActions = ref(true)
 
   // list of investments
   const investmentsGreedy = ref<AlgoInvestment[]>([])
@@ -27,6 +29,8 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   function runAlgorithms() {
     algorithmsInProgress.value = true
     algorithmsCompleted.value = false
+    algorithmsCompare.value = false
+    optimalActions.value = true
 
     // clear previous results
     investmentsGreedy.value = []
@@ -60,7 +64,8 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   function resetAlgorithms() {
     algorithmsInProgress.value = false
     algorithmsCompleted.value = false
-
+    algorithmsCompare.value = false
+    optimalActions.value = true
     investmentsGreedy.value = []
     investmentsEGreedy.value = []
     investmentsThompson.value = []
@@ -128,5 +133,5 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   )
 
 
-  return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
+  return { algorithmsInProgress, algorithmsCompleted, algorithmsCompare, optimalActions, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
 })

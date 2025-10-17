@@ -2,6 +2,9 @@ import { bernoulli } from "../bandits/bernoulli.js";
 import { gaussian } from "../bandits/gaussian.js";
 import { useBanditStore } from "@/stores/bandit";
 import { useAlgorithmStore } from "@/stores/algorithms";
+import { addUCBResult } from '@/stores/compare_algos_store';
+import { getDefaultParams } from '@/stores/parameter_algos.ts';
+import { setParamAlgo } from '@/stores/parameter_algos.ts';
 
 type BanditKind = "bernoulli" | "gaussian";
 
@@ -12,9 +15,18 @@ export function upperConfidenceBound_gaussian() {
   ucb("gaussian");
 }
 
+function setParam(algorithmStore: ReturnType<typeof useAlgorithmStore>) {
+  if (algorithmStore.algorithmsCompare === false) {
+    return getDefaultParams().ucb;
+  } else {
+    return getDefaultParams().ucb;
+  }
+}
+
 function ucb(bandit: BanditKind) {
   const banditStore = useBanditStore();
   const algorithmStore = useAlgorithmStore();
+  const UCB_C = setParamAlgo('ucb');
 
   const stocks = banditStore.selectedStocks;
   const K = stocks.length;
@@ -36,7 +48,7 @@ function ucb(bandit: BanditKind) {
   };
 
   const ucbValue = (mean: number, n: number, t: number) =>
-    mean + Math.sqrt((2 * Math.log(t)) / n);
+    mean + Math.sqrt((UCB_C * Math.log(t)) / n);
 
   // Initialisierung: jeden Arm genau einmal ziehen, solange Budget vorhanden
   for (let i = 0; i < K && totalUcbPulls() < T; i++) {
@@ -65,7 +77,11 @@ function ucb(bandit: BanditKind) {
 
     const chosen = stocks[best];
     const reward = drawReward(bandit, chosen);
-    pushInvestment(chosen, reward);
+    if (algorithmStore.algorithmsCompare === false) {
+      pushInvestment(chosen, reward);
+    } else {
+      addUCBResult(UCB_C, reward);
+    }
   }
 
   algorithmStore.algorithmsInProgress = false;

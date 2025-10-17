@@ -3,6 +3,7 @@ import { gaussian } from '../bandits/gaussian.js';
 import { useBanditStore } from '@/stores/bandit';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import jStat from "jstat";
+import { addThompsonResult } from '@/stores/compare_algos_store';
 
 export function thompsonSampling_bernoulli() {
     const bandit = 'bernoulli';
@@ -65,16 +66,21 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
                 reward = gaussian(chosen_arm.gaussian_param);
                 break;
         }
-        algorithmStore.investmentsThompson.push({
-            stock: chosen_arm,
-            greedyReturn: null,
-            eGreedyReturn: null,
-            thompsonReturn: reward,
-            ucbReturn: null,
-            gradientReturn: null,
-            optimisticInitialReturn: null,
-            userAlgorithmReturn: null
-        });
+
+        if (algorithmStore.algorithmsCompare === false) {
+            algorithmStore.investmentsThompson.push({
+                stock: chosen_arm,
+                greedyReturn: null,
+                eGreedyReturn: null,
+                thompsonReturn: reward,
+                ucbReturn: null,
+                gradientReturn: null,
+                optimisticInitialReturn: null,
+                userAlgorithmReturn: null
+            });
+        } else {
+            addThompsonResult('default', reward);
+        }
     }
     algorithmStore.algorithmsInProgress = false;
 }
