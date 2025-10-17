@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeMount, onMounted, ref, watch, type Ref } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
@@ -7,6 +7,8 @@ import CompareChartReward from '@/components/CompareChartReward.vue';
 import Modal from '@/components/Modal.vue';
 import MathTex from '@/components/MathTex.vue';
 import renderMathInElement from 'katex/contrib/auto-render';
+import { algorithms_evaluation } from '@/stores/evaluation';
+import type { AlgorithmKey } from '@/types/evaluations';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
@@ -31,6 +33,57 @@ const algorithmToggles = ref([
 ] as const);
 
 type AlgorithmToggle = typeof algorithmToggles.value[number];
+
+interface EvaluationMeta {
+  label: string;
+  color: string;
+  toggleRef?: Ref<boolean>;
+}
+
+const evaluationMetadata: Record<AlgorithmKey, EvaluationMeta> = {
+  greedy: { label: 'Greedy Algorithmus', color: '#ff0000', toggleRef: showGreedy },
+  eGreedy: { label: 'Epsilon-Greedy', color: '#ffa500', toggleRef: showEGreedy },
+  thompson: { label: 'Thompson Sampling', color: '#008000', toggleRef: showThompson },
+  ucb: { label: 'Upper Confidence Bound', color: '#0000ff', toggleRef: showUCB },
+  gradient: { label: 'Gradient Bandit', color: '#00ffff', toggleRef: showGradient },
+  optimisticInitial: { label: 'Optimistic Initial Values', color: '#800080', toggleRef: showOIV },
+  user: { label: 'Nutzerergebnis', color: '#ffffff', toggleRef: showUser }
+};
+
+interface EvaluationDisplayItem {
+  algorithm: AlgorithmKey;
+  label: string;
+  color: string;
+  valueDisplay: string;
+  active: boolean;
+  hasData: boolean;
+}
+
+const evaluationResults = computed<EvaluationDisplayItem[]>(() =>
+  algorithms_evaluation().map(({ algorithm, percentages }) => {
+    const meta = evaluationMetadata[algorithm];
+    const lastValue = percentages.length > 0 ? percentages[percentages.length - 1] : null;
+    const hasData = typeof lastValue === 'number' && !Number.isNaN(lastValue);
+    const valueDisplay = hasData ? `${lastValue.toFixed(1)} %` : '–';
+
+    return {
+      algorithm,
+      label: meta?.label ?? algorithm,
+      color: meta?.color ?? 'var(--text, #333)',
+      valueDisplay,
+      active: meta?.toggleRef ? meta.toggleRef.value : true,
+      hasData
+    };
+  })
+);
+
+const evaluationResultsWithData = computed(() =>
+  evaluationResults.value.filter(item => item.hasData)
+);
+
+const evaluationSeriesHasData = computed(() =>
+  evaluationResultsWithData.value.length > 0
+);
 
 const activeTheory = ref<AlgorithmToggle | null>(null);
 
@@ -191,6 +244,31 @@ function formatSelectedArmValue(value: number) {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="sidebar-evaluation">
+            <h3>Trefferquoten</h3>
+            <p v-if="!evaluationSeriesHasData" class="evaluation-empty">
+              Noch keine Auswertungen vorhanden.
+            </p>
+            <ul v-else class="evaluation-list">
+              <li
+                v-for="item in evaluationResultsWithData"
+                :key="item.algorithm"
+                class="evaluation-item"
+                :class="{ 'evaluation-item--inactive': !item.active }"
+              >
+                <span class="evaluation-name" :style="{ color: item.color }">
+                  {{ item.label }}
+                </span>
+                <span class="evaluation-value">
+                  {{ item.valueDisplay }}
+                </span>
+              </li>
+            </ul>
+            <p v-if="evaluationSeriesHasData" class="evaluation-hint">
+              Werte: kumulative Trefferquote gegenüber dem besten Arm.
+            </p>
           </div>
         </div>
       </div>
@@ -363,6 +441,10 @@ function formatSelectedArmValue(value: number) {
   margin-bottom: 1.5rem;
 }
 
+.sidebar-evaluation {
+  width: 100%;
+}
+
 .algorithm-toggle-group {
   display: flex;
   flex-direction: column;
@@ -406,6 +488,47 @@ function formatSelectedArmValue(value: number) {
   opacity: 85%;
 }
 
+.evaluation-empty {
+  margin: 0.25rem 0;
+  color: var(--text-muted, #666666);
+}
+
+.evaluation-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.evaluation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.evaluation-item--inactive {
+  opacity: 0.5;
+}
+
+.evaluation-name {
+  font-weight: 500;
+}
+
+.evaluation-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.evaluation-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: whitesmoke
+}
+
 .theory-modal-content {
   display: flex;
   flex-direction: column;
@@ -415,7 +538,7 @@ function formatSelectedArmValue(value: number) {
 .theory-source {
   margin-top: .35rem;
   font-size: .9rem;
-  color: var(--muted, #666);
+  color: whitesmoke;
 }
 
 .selected-arm-list {
