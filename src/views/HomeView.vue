@@ -143,6 +143,12 @@ const tableHeaders: Ref<Header[]> = computed(() => {
 });
 const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 
+const investmentsDisplayCount = computed(() =>
+  banditStore.banditInProgress
+    ? banditStore.remainingInvestments
+    : banditStore.possibleInvestments
+);
+
 const resetBandit = () => {
   banditStore.resetBandit();
   algorithmStore.resetAlgorithms();
@@ -232,7 +238,7 @@ const resetBandit = () => {
                   <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
                 </button>
                 <div>
-                  {{ banditStore.possibleInvestments }}
+                  {{ investmentsDisplayCount }}
                 </div>
                 <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments  = banditStore.possibleInvestments + 2" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
                   <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
