@@ -215,7 +215,7 @@ const resetBandit = () => {
             </div>
           </div>
           <div class="capital-box">
-            <div class="capital-box-row">
+            <div class="capital-box-row" v-if="false">
               <div>
                 Startkapital:
               </div>
@@ -223,7 +223,7 @@ const resetBandit = () => {
                 {{ banditStore.startingCapital }} €
               </div>
             </div>
-            <div class="capital-box-row">
+            <div class="capital-box-row" v-if="false">
               <div>
                 Restkapital:
               </div>
@@ -245,14 +245,14 @@ const resetBandit = () => {
                 </button>
               </div>
             </div>
-            <!-- <div class="capital-box-row">
+            <div class="capital-box-row" v-if="banditStore.activeBandit !== 'bernoulli'">
               <div>
                 Per Investment:
               </div>
               <div>
-                {{ Math.round(banditStore.investmentStep * 100) / 100 }}
+                {{ Math.round(banditStore.investmentStep * 100) / 100 }} €
               </div>
-            </div> -->
+            </div>
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
