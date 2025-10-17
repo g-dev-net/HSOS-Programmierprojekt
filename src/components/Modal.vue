@@ -46,6 +46,8 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 
+let activeScrollLocks = 0
+
 const props = defineProps({
   /** v-model binding to control visibility */
   modelValue: { type: Boolean, default: false },
@@ -85,11 +87,17 @@ function onKeydown (e: KeyboardEvent) {
 function lockScroll (lock: boolean) {
   const body = document.body
   if (lock) {
-    body.dataset.modalScrollLock = 'true'
-    body.style.overflow = 'hidden'
+    activeScrollLocks += 1
+    if (activeScrollLocks === 1) {
+      body.dataset.modalScrollLock = 'true'
+      body.style.overflow = 'hidden'
+    }
   } else {
-    delete body.dataset.modalScrollLock
-    body.style.overflow = ''
+    activeScrollLocks = Math.max(0, activeScrollLocks - 1)
+    if (activeScrollLocks === 0) {
+      delete body.dataset.modalScrollLock
+      body.style.overflow = ''
+    }
   }
 }
 
@@ -99,6 +107,7 @@ watch(() => props.modelValue, (show) => {
     open()
   } else {
     document.removeEventListener('keydown', onKeydown)
+    lockScroll(false)
   }
 })
 
