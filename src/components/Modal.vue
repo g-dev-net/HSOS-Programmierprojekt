@@ -179,6 +179,7 @@ onBeforeUnmount(() => {
   font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
+  color: white;
 }
 .modal__content {
   padding: 1.25rem;
