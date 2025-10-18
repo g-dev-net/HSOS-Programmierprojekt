@@ -132,10 +132,18 @@ const animationsEnabled = computed(() => maxDataPoints.value < 400)
 const options = computed(() => ({
   animationEnabled: animationsEnabled.value,
   backgroundColor: "transparent",
+  title:{
+			text: "Rewards im Vergleich",
+      fontColor: 'white',
+      fontFamily: 'Arial',
+      fontWeight: 'bold',
+      margin: 5,
+      fontSize: 20
+	},
   legend: {
     fontColor: "white",
     horizontalAlign: "right",
-    verticalAlign: "top",
+    verticalAlign: "top"
   },
   axisX: {
     title: "Investments",
@@ -159,7 +167,7 @@ const options = computed(() => ({
   data: [{
     type: "line",
     lineColor: "white",
-    showInLegend: true,
+    showInLegend: false,
     name: "Nutzerergebnis",
     lineThickness: 3,
     markerColor: "white",
@@ -169,7 +177,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "red",
-    showInLegend: true,
+    showInLegend: false,
     name: "Greedy Algorithmus",
     lineThickness: 3,
     markerColor: "red",
@@ -179,7 +187,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "green",
-    showInLegend: true,
+    showInLegend: false,
     name: "Thompson Sampling",
     lineThickness: 3,
     markerColor: "green",
@@ -189,7 +197,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "blue",
-    showInLegend: true,
+    showInLegend: false,
     name: "Upper Confidence Bound",
     lineThickness: 3,
     markerColor: "blue",
@@ -199,7 +207,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "orange",
-    showInLegend: true,
+    showInLegend: false,
     name: "Epsilon-Greedy",
     lineThickness: 3,
     markerColor: "orange",
@@ -209,7 +217,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "purple",
-    showInLegend: true,
+    showInLegend: false,
     name: "Optimistic Initial Values",
     lineThickness: 3,
     markerColor: "purple",
@@ -219,7 +227,7 @@ const options = computed(() => ({
   {
     type: "line",
     lineColor: "cyan",
-    showInLegend: true,
+    showInLegend: false,
     name: "Gradient Bandit",
     lineThickness: 3,
     markerColor: "cyan",

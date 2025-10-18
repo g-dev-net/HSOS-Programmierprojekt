@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeMount, ref } from 'vue';
+import { computed, nextTick, onBeforeMount, onMounted, ref, watch, type Ref } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
@@ -8,7 +8,11 @@ import CompareResultChart from '@/components/CompareResultChart.vue';
 import Modal from '@/components/Modal.vue';
 import { comp_algos_bernoulli, comp_algos_gaussian, type CompareResult } from '@/algorithms/compare_algos.ts';
 import { addAlgorithmParam, removeAlgorithmParam, getAlgorithmParams, setParamAlgo } from '@/stores/parameter_algos.ts';
-// import { algorithmParam } from '@/stores/parameter_algos.ts';
+import CompareChartAccuracy from '@/components/CompareChartAccuracy.vue';
+import MathTex from '@/components/MathTex.vue';
+import renderMathInElement from 'katex/contrib/auto-render';
+import { algorithms_evaluation } from '@/assets/utils/evaluation'
+import type { AlgorithmKey } from '@/types/evaluations';
 
 // ----------------------- Stores -----------------------
 const banditStore = useBanditStore();
@@ -26,13 +30,13 @@ const showOIV = ref(true);
 const showGradient = ref(true);
 
 const algorithmToggles = ref([
-  { id: 'user', label: 'Nutzerergebnis', show: showUser, theoryTitle: 'Nutzerergebnis' },
-  { id: 'greedy', label: 'Greedy Algorithmus', show: showGreedy, theoryTitle: 'Greedy Algorithmus' },
-  { id: 'thompson', label: 'Thompson Sampling', show: showThompson, theoryTitle: 'Thompson Sampling' },
-  { id: 'ucb', label: 'Upper Confidence Bound', show: showUCB, theoryTitle: 'Upper Confidence Bound' },
-  { id: 'eGreedy', label: 'Epsilon-Greedy', show: showEGreedy, theoryTitle: 'Epsilon-Greedy' },
-  { id: 'oiv', label: 'Optimistic Initial Values', show: showOIV, theoryTitle: 'Optimistic Initial Values' },
-  { id: 'gradient', label: 'Gradient Bandit', show: showGradient, theoryTitle: 'Gradient Bandit' },
+  { id: 'user', label: 'Nutzerergebnis', show: showUser, theoryTitle: 'Nutzerergebnis', color: '#ffffff' },
+  { id: 'greedy', label: 'Greedy Algorithmus', show: showGreedy, theoryTitle: 'Greedy Algorithmus', color: '#ff0000' },
+  { id: 'thompson', label: 'Thompson Sampling', show: showThompson, theoryTitle: 'Thompson Sampling', color: '#008000' },
+  { id: 'ucb', label: 'Upper Confidence Bound', show: showUCB, theoryTitle: 'Upper Confidence Bound', color: '#0000ff' },
+  { id: 'eGreedy', label: 'Epsilon-Greedy', show: showEGreedy, theoryTitle: 'Epsilon-Greedy', color: '#ffa500' },
+  { id: 'oiv', label: 'Optimistic Initial Values', show: showOIV, theoryTitle: 'Optimistic Initial Values', color: '#800080' },
+  { id: 'gradient', label: 'Gradient Bandit', show: showGradient, theoryTitle: 'Gradient Bandit', color: '#00ffff' },
 ] as const);
 
 // ----------------------- Popup Modal Toggles -----------------------
@@ -48,6 +52,84 @@ const popupAlgoToggles = ref([
 type AlgorithmToggle = typeof algorithmToggles.value[number];
 
 // ----------------------- Modal State -----------------------
+interface EvaluationMeta {
+  label: string;
+  color: string;
+  toggleRef?: Ref<boolean>;
+}
+
+const evaluationMetadata: Record<AlgorithmKey, EvaluationMeta> = {
+  greedy: { label: 'Greedy Algorithmus', color: '#ff0000', toggleRef: showGreedy },
+  eGreedy: { label: 'Epsilon-Greedy', color: '#ffa500', toggleRef: showEGreedy },
+  thompson: { label: 'Thompson Sampling', color: '#008000', toggleRef: showThompson },
+  ucb: { label: 'Upper Confidence Bound', color: '#0000ff', toggleRef: showUCB },
+  gradient: { label: 'Gradient Bandit', color: '#00ffff', toggleRef: showGradient },
+  optimisticInitial: { label: 'Optimistic Initial Values', color: '#800080', toggleRef: showOIV },
+  user: { label: 'Nutzerergebnis', color: '#ffffff', toggleRef: showUser }
+};
+
+interface EvaluationDisplayItem {
+  algorithm: AlgorithmKey;
+  label: string;
+  color: string;
+  valueDisplay: string;
+  active: boolean;
+  hasData: boolean;
+}
+
+interface EvaluationChartSeriesItem {
+  name: string;
+  color: string;
+  visible: boolean;
+  percentages: number[];
+}
+
+const evaluationSeries = computed(() => algorithms_evaluation());
+
+const evaluationResults = computed<EvaluationDisplayItem[]>(() =>
+  evaluationSeries.value.map(({ algorithm, percentages }) => {
+    const meta = evaluationMetadata[algorithm];
+    const lastValue = percentages.length > 0 ? percentages[percentages.length - 1] : null;
+    const hasData = typeof lastValue === 'number' && !Number.isNaN(lastValue);
+    const valueDisplay = hasData ? `${lastValue.toFixed(1)} %` : '–';
+
+    return {
+      algorithm,
+      label: meta?.label ?? algorithm,
+      color: meta?.color ?? 'var(--text, #333)',
+      valueDisplay,
+      active: meta?.toggleRef ? meta.toggleRef.value : true,
+      hasData
+    };
+  })
+);
+
+const evaluationResultsWithData = computed(() =>
+  evaluationResults.value.filter(item => item.hasData)
+);
+
+const evaluationSeriesHasData = computed(() =>
+  evaluationResultsWithData.value.length > 0
+);
+
+const evaluationChartSeries = computed<EvaluationChartSeriesItem[]>(() =>
+  evaluationSeries.value
+    .map(({ algorithm, percentages }) => {
+      const meta = evaluationMetadata[algorithm];
+      if (!percentages || percentages.length === 0) {
+        return null;
+      }
+
+      return {
+        name: meta?.label ?? algorithm,
+        color: meta?.color ?? '#999999',
+        visible: meta?.toggleRef ? meta.toggleRef.value : true,
+        percentages
+      };
+    })
+    .filter((item): item is EvaluationChartSeriesItem => item !== null)
+);
+
 const activeTheory = ref<AlgorithmToggle | null>(null);
 const compareModalVisible = ref(false);
 const loadingModalVisible = ref(false);
@@ -157,6 +239,10 @@ const startComparison = () => {
   compareModalVisible.value = false;
 }
 
+function onNavBack() {
+  router.push('/');
+}
+
 // Führt alle im Popup beschriebenen Aktionen aus
 function runPopupActions() {
 
@@ -222,31 +308,84 @@ const onNavBack = () => {
 
 // ----------------------- Lifecycle -----------------------
 onBeforeMount(() => {
-  if (!algorithmStore.algorithmsCompleted && banditStore.banditInProgress) {
-    algorithmStore.runAlgorithms();
+  if (banditStore.selectedStocks.length === 0) {
+    return;
   }
 });
 
 
+  algorithmStore.resetAlgorithms();
+  algorithmStore.runAlgorithms();
+});
+
+// KaTeX Inline Render im Modal
+const theoryContentRef = ref<HTMLElement | null>(null);
+
+function renderInlineMath() {
+  if (!theoryContentRef.value) return;
+  renderMathInElement(theoryContentRef.value, {
+    delimiters: [
+      { left: '\\(', right: '\\)', display: false },
+      { left: '\\[', right: '\\]', display: true },
+      { left: '$$', right: '$$', display: true }
+    ],
+    throwOnError: false
+  });
+}
+
+onMounted(() => {
+  renderInlineMath();
+});
+
+watch([activeTheory, theoryModalVisible], async () => {
+  await nextTick();
+  renderInlineMath();
+});
+
+const probabilityLabel = computed(() =>
+  banditStore.activeBandit === 'bernoulli'
+    ? 'Erfolgswahrscheinlichkeit'
+    : 'Erwartete Rendite'
+);
+
+const selectedArmSummaries = computed(() =>
+  banditStore.selectedStocks.map(selected => ({
+    id: selected.stock.id,
+    name: selected.stock.name,
+    logoUrl: selected.stock.logo_url,
+    value:
+      banditStore.activeBandit === 'bernoulli'
+        ? selected.bernoulli_param
+        : selected.gaussian_param,
+  }))
+);
+
+function formatSelectedArmValue(value: number) {
+  if (banditStore.activeBandit === 'bernoulli') {
+    return `${(value * 100).toFixed(1)} %`;
+  }
+
+  const percent = value * 100;
+  const prefix = percent > 0 ? '+' : '';
+  return `${prefix}${percent.toFixed(1)} %`;
+}
 </script>
 
 <template>
   <div class="home-view">
     <!-- Headbar -->
     <div class="main-home-headbar">
-      <button class="white-button navBackButton" @click="onNavBack">Zurück</button>
+      <RouterLink class="white-button navBackButton" to="/" data-tour-target="compare-back">Zurück</RouterLink>
       <div class="headbar-title">Vergleich mit Algorithmen</div>
     </div>
+
     <!-- Content -->
     <div class="home-view-content">
-      <!-- Main Content -->
-      <div class="main-home-view">
-        
-        <!-- Hier das Diagramm für den Bandit -->
-        <div class="diagramm" ref="diagrammRef">
-          <CompareChartReward 
-            :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
-            :dataGreedy="algorithmStore.greedyDataPoints" 
+        <div class="main-home-view" data-tour-target="compare-overview">
+          <div class="diagramm" ref="diagrammRef">
+            <CompareChartReward
+              :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
+              :dataGreedy="algorithmStore.greedyDataPoints"
             :dataThompson="algorithmStore.thompsonSamplingDataPoints"
             :dataUser="banditStore.displayData"
             :dataEGreedy="algorithmStore.eGreedyDataPoints"
@@ -258,13 +397,20 @@ onBeforeMount(() => {
             :showThompson="showThompson"
             :showUCB="showUCB"
             :showEGreedy="showEGreedy"
-            :showOIV="showOIV"
-            :showGradient="showGradient"
-          />
+              :showOIV="showOIV"
+              :showGradient="showGradient"
+            />
+          </div>
+          <div
+            v-if="evaluationChartSeries.length > 0"
+            class="diagramm diagramm--evaluation"
+          >
+            <CompareChartAccuracy :series="evaluationChartSeries" />
+          </div>
         </div>
-      </div>
-      <!-- Sidebar -->
-      <div class="sidebar-home-view">
+
+        <!-- Sidebar -->
+        <div class="sidebar-home-view">
         <div class="sidebar-portfolio">
           <h3>Einstellungen</h3>
           <div class="algorithm-toggle-group">
@@ -275,7 +421,9 @@ onBeforeMount(() => {
             >
               <label class="algorithm-toggle-label">
                 <input type="checkbox" v-model="toggle.show" />
-                {{ toggle.label }}
+                <span class="algorithm-toggle-text" :style="{ color: toggle.color }">
+                  {{ toggle.label }}
+                </span>
               </label>
               <button
                 type="button"
@@ -288,10 +436,132 @@ onBeforeMount(() => {
           </div>
           <div style="margin-top: 1rem;">
             <button class="white-button" @click="openCompareModal">Vergleich Algorithmen Parameter</button>
+          <div class="sidebar-selected-arms">
+            <h3>Ausgewählte Arme</h3>
+            <p v-if="selectedArmSummaries.length === 0" class="selected-arm-empty">
+              Keine Arme ausgewählt.
+            </p>
+            <div v-else class="selected-arm-list">
+              <div
+                v-for="arm in selectedArmSummaries"
+                :key="arm.id"
+                class="selected-arm-item"
+              >
+                <img
+                  v-if="arm.logoUrl"
+                  :src="arm.logoUrl"
+                  alt="Logo"
+                  class="selected-arm-logo"
+                />
+                <div class="selected-arm-info">
+                  <div class="selected-arm-name">{{ arm.name }}</div>
+                  <div class="selected-arm-value">
+                    {{ probabilityLabel }}: {{ formatSelectedArmValue(arm.value) }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Theorie Modal -->
+    <Modal
+      v-model="theoryModalVisible"
+      :close-on-backdrop="true"
+      :close-on-esc="true"
+    >
+      <template #header>
+        <h2 class="modal__title">
+          Theorie • {{ activeTheory ? activeTheory.theoryTitle : '' }}
+        </h2>
+      </template>
+
+      <div class="theory-modal-content" ref="theoryContentRef">
+        <!-- UCB -->
+        <template v-if="activeTheory && activeTheory.id === 'ucb'">
+          <h3 style="margin:.2rem 0 .35rem;">Kernprinzip</h3>
+          <p style="margin:.25rem 0;">
+            Upper Confidence Bound berechnet in Runde \(t\) für jeden Arm \(i\) einen UCB-Index.
+          </p>
+
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\mathrm{Bonus}_t(i)" />
+
+          <p style="margin:.25rem 0;">
+            \(\hat{\mu}_t(i)\) ist der aktuelle Schätzwert der durchschnittlichen Belohnung. \(\mathrm{Bonus}_t(i)\) ist der Konfidenzbonus, also der Aufschlag oberhalb des Schätzwerts. Der Bonus ist nicht die Obergrenze selbst, sondern der Abstand zwischen \(\hat{\mu}_t(i)\) und dem UCB-Index. Der Arm mit dem größten UCB-Index wird gezogen. Arme mit wenigen Beobachtungen erhalten größere Boni und werden dadurch häufiger ausprobiert. Gut bekannte Arme werden eher ausgenutzt. Mit mehr Daten schrumpft der Bonus und der UCB-Index nähert sich dem Schätzwert an.
+          </p>
+
+          <h3 style="margin:.4rem 0 .3rem;">Konkrete Bonusformeln</h3>
+
+          <h4 style="margin:.2rem 0 .2rem;">Bernoulli Belohnungen in \([0,1]\)</h4>
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\ln t}{n_i(t)}}" />
+          <p style="margin:.2rem 0;">Gilt für Belohnungen im Intervall \([0,1]\).</p>
+
+          <h4 style="margin:.35rem 0 .2rem;">Gaussian Belohnungen mit bekannter \(\sigma\)</h4>
+          <MathTex :display="true" expr="\mathrm{UCB}_t(i)=\hat{\mu}_t(i)+\sqrt{\frac{2\sigma^{2}\ln t}{n_i(t)}}" />
+          <p style="margin:.2rem 0;">\(\sigma\) berücksichtigt die Streuung der Normalverteilung und skaliert die Unsicherheit.</p>
+
+          <h3 style="margin:.45rem 0 .25rem;">Ablauf</h3>
+          <ol style="margin:.2rem 0; padding-left:1rem;">
+            <li><strong>Initialisierung</strong>: Jeden Arm mindestens einmal ziehen, damit \(\hat{\mu}_t(i)\) und \(n_i(t)\) definiert sind.</li>
+            <li><strong>Iterative Auswahl</strong>:
+              <ul style="margin:.1rem 0; padding-left:1rem;">
+                <li>\(\hat{\mu}_t(i)\) schätzen und \(n_i(t)\) zählen</li>
+                <li>\(\mathrm{UCB}_t(i)\) pro Arm berechnen</li>
+                <li>Arm mit maximalem \(\mathrm{UCB}_t(i)\) wählen</li>
+                <li>Belohnung beobachten und \(\hat{\mu}_t(i)\) sowie \(n_i(t)\) aktualisieren</li>
+              </ul>
+            </li>
+            <li><strong>Stopp</strong>: Sobald alle Investments durchgeführt sind, endet der Prozess.</li>
+          </ol>
+
+          <h3 style="margin:.45rem 0 .25rem;">Warum funktioniert das?</h3>
+          <p style="margin:.25rem 0;">
+            Der UCB-Index ist so konstruiert, dass die wahre mittlere Armqualität mit hoher Wahrscheinlichkeit unter dieser oberen Konfidenzgrenze liegt. Durch das Maximieren des \(\mathrm{UCB}\) wird suboptimale Ausnutzung begrenzt und Exploration genau dort erzwungen, wo Unsicherheit hoch ist. In klassischen Multi Armed Bandit Einstellungen führt das zu Regret-Schranken mit logarithmischem Zeitwachstum.
+          </p>
+
+          <p class="theory-source">
+            Quelle: Russo, Van Roy, Kazerouni, Osband, Wen. A Tutorial on Thompson Sampling, 2018.
+          </p>
+        </template>
+
+        <!-- Greedy -->
+        <template v-else-if="activeTheory && activeTheory.id === 'greedy'">
+          <p>Hier kommt die Theorie zu Greedy. Kurz: immer den aktuell besten Arm wählen, keine Exploration.</p>
+        </template>
+
+        <!-- Thompson -->
+        <template v-else-if="activeTheory && activeTheory.id === 'thompson'">
+          <p>Hier kommt die Theorie zu Thompson Sampling. Kurz: Posterior ziehen und den Arm mit maximaler gezogener Belohnung spielen.</p>
+        </template>
+
+        <!-- Epsilon-Greedy -->
+        <template v-else-if="activeTheory && activeTheory.id === 'eGreedy'">
+          <p>Hier kommt die Theorie zu Epsilon Greedy. Kurz: mit Wahrscheinlichkeit \(\varepsilon\) explorieren, sonst ausnutzen.</p>
+        </template>
+
+        <!-- OIV -->
+        <template v-else-if="activeTheory && activeTheory.id === 'oiv'">
+          <p>Hier kommt die Theorie zu Optimistic Initial Values. Kurz: optimistische Startwerte forcen frühe Exploration.</p>
+        </template>
+
+        <!-- Gradient Bandit -->
+        <template v-else-if="activeTheory && activeTheory.id === 'gradient'">
+          <p>Hier kommt die Theorie zu Gradient Bandit. Kurz: Präferenzen updaten, Softmax Policy über Präferenzen.</p>
+        </template>
+
+        <!-- Nutzerergebnis -->
+        <template v-else-if="activeTheory && activeTheory.id === 'user'">
+          <p>Hier erklärst du das Nutzerergebnis und wie es mit den Algorithmen verglichen wird.</p>
+        </template>
+
+        <!-- Fallback -->
+        <template v-else>
+          <p>Der theoretische Inhalt wird hier bald verfügbar sein.</p>
+        </template>
+      </div>
+    </Modal>
   </div>
   <Modal
     v-model="theoryModalVisible"
@@ -454,6 +724,7 @@ onBeforeMount(() => {
     </template>
   </Modal>
 </template>
+
 <style scoped>
 /* ====================== Layout ====================== */
 .home-view {
@@ -492,6 +763,7 @@ onBeforeMount(() => {
 
 .navBackButton {
   height: fit-content;
+  text-decoration: none;
 }
 
 .headbar-title {
@@ -513,7 +785,29 @@ onBeforeMount(() => {
 }
 
 /* ====================== Sidebar ====================== */
+.diagramm--evaluation {
+  aspect-ratio: auto;
+  min-height: 0;
+}
+
+.headbar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Sidebar */
 .sidebar-portfolio {
+  width: 100%;
+}
+
+.sidebar-selected-arms {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.sidebar-evaluation {
   width: 100%;
 }
 
@@ -532,6 +826,11 @@ onBeforeMount(() => {
 }
 
 .algorithm-toggle-label {
+.algorithm-toggle-text {
+  font-weight: 500;
+}
+
+.algorithm-toggle-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -557,6 +856,47 @@ onBeforeMount(() => {
 }
 
 /* ====================== Modal ====================== */
+.evaluation-empty {
+  margin: 0.25rem 0;
+  color: var(--text-muted, #666666);
+}
+
+.evaluation-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.evaluation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.evaluation-item--inactive {
+  opacity: 0.5;
+}
+
+.evaluation-name {
+  font-weight: 500;
+}
+
+.evaluation-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.evaluation-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: whitesmoke
+}
+
 .theory-modal-content {
   display: flex;
   flex-direction: column;
@@ -659,5 +999,54 @@ onBeforeMount(() => {
   justify-content: center;
   box-sizing: border-box;
   overflow: visible; /* kein Scrollen */
+.theory-source {
+  margin-top: .35rem;
+  font-size: .9rem;
+  color: whitesmoke;
+}
+
+.selected-arm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.selected-arm-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.selected-arm-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.selected-arm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.selected-arm-name {
+  font-weight: 600;
+}
+
+.selected-arm-value {
+  font-size: 0.9rem;
+  color: whitesmoke;
+}
+
+.selected-arm-empty {
+  font-size: 0.9rem;
+  color: whitesmoke;
+  margin-top: 0.5rem;
+}
+
+/* Schutz vor Global CSS auf Formeln */
+:deep(.katex) {
+  line-height: normal;
 }
 </style>

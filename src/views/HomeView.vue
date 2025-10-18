@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import MainChart from '@/components/MainChart.vue';
-import { type Ref, ref, watch, computed } from 'vue';
+import { type Ref, ref, watch, computed, nextTick } from 'vue';
 import { useBanditStore } from '@/stores/bandit';
 import Modal from '@/components/Modal.vue';
 import stocks from '@/data/aktien.json'
@@ -10,11 +10,25 @@ import MainTable from '@/components/MainTable.vue';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import type { Header, Row } from '@/types/table';
+// @ts-ignore
+import Shepherd from 'shepherd.js';
+import 'shepherd.js/dist/css/shepherd.css';
 
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
 const algorithmStore = useAlgorithmStore();
-const stockList = stocks as Stock[];
+const logoImports = import.meta.glob('../assets/companyLogos/*.png', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+const stockList = (stocks as Stock[]).map((stock) => {
+  const assetPath = `../assets/${stock.logo_url}`;
+  const logo = logoImports[assetPath];
+  return {
+    ...stock,
+    logo_url: logo ?? stock.logo_url,
+  } as Stock;
+});
 type BanditKey = (typeof banditStore.bandits)[number]['key'];
 initializePortfolio();
 
@@ -29,11 +43,6 @@ function initializePortfolio() {
 }
 
 // ----------------------- algorithm selection -----------------------
-const bandits = [
-  { name: 'Gaussian-Bandit', key: 'gaussian' },
-  { name: 'Bernoulli-Bandit', key: 'bernoulli' },
-];
-const activeBandit: Ref<string> = ref(bandits[0].key);
 const isTheoryOpen = ref(false);
 
 const gaussianTheory = [
@@ -52,7 +61,7 @@ const gaussianTheory = [
   `Wer sich tiefer mit der Theorie und den mathematischen Grundlagen besch&auml;ftigen m&ouml;chte, findet eine fundierte Einf&uuml;hrung in <a href="https://www.cambridge.org/highereducation/books/bandit-algorithms/06C4BB5A1B0B4223931C0463FBEC6F8E" target="_blank" rel="noopener">Lattimore &amp; Szepesv&aacute;ri (2020), <em>Bandit Algorithms</em></a> oder eine praxisorientierte Darstellung in <a href="https://web.stanford.edu/~bvr/pubs/TS_Tutorial.pdf" target="_blank" rel="noopener">Russo &amp; Van Roy (2016), <em>An Introduction to Thompson Sampling</em></a>.`,
 ];
 
-const theoryContent = computed<string[]>(() => (activeBandit.value === 'gaussian' ? gaussianTheory : bernoulliTheory));
+const theoryContent = computed<string[]>(() => (banditStore.activeBandit === 'gaussian' ? gaussianTheory : bernoulliTheory));
 function onBanditChange(banditKey: BanditKey) {
   if (banditStore.banditInProgress) {
     alert('Der Bandit läuft bereits. Bitte setzen Sie den Bandit zurück, um den Algorithmus zu wechseln.');
@@ -69,6 +78,346 @@ function onCompareAlgorithms() {
 const showStockManager = ref(false);
 // ----------------------- instructions modal -----------------------
 const showInstructionModal = ref(false);
+type ShepherdTour = InstanceType<typeof Shepherd.Tour>;
+const shepherdTour = ref<ShepherdTour | null>(null);
+
+function destroyTour() {
+  if (!shepherdTour.value) {
+    return;
+  }
+
+  shepherdTour.value.cancel();
+  shepherdTour.value = null;
+}
+
+function waitForElement(selector: string, timeout = 2000): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const start = performance.now();
+
+    const check = () => {
+      if (document.querySelector(selector)) {
+        resolve();
+        return;
+      }
+
+      if (performance.now() - start > timeout) {
+        console.warn(`Shepherd: Element ${selector} not found within timeout.`);
+        resolve();
+        return;
+      }
+
+      requestAnimationFrame(check);
+    };
+
+    check();
+  });
+}
+
+async function navigateTo(path: string) {
+  if (router.currentRoute.value.path === path) {
+    return;
+  }
+
+  try {
+    await router.push(path);
+  } catch (error) {
+    console.warn('Shepherd: Navigation fehlgeschlagen', error);
+  }
+}
+
+function createInteractiveTour(): ShepherdTour | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const tour = new Shepherd.Tour({
+    useModalOverlay: true,
+    defaultStepOptions: {
+      cancelIcon: {
+        enabled: true,
+      },
+      canClickTarget: true,
+      scrollTo: {
+        behavior: 'smooth',
+        block: 'center',
+      },
+      //@ts-ignore
+      popperOptions: {
+        modifiers: [
+          {
+            name: 'offset',
+            options: {
+              offset: [0, 12],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const exitButton = {
+    text: 'Tour beenden',
+    action: () => {
+      tour.cancel();
+    },
+    secondary: true,
+  };
+  const nextButton = {
+    text: 'Weiter',
+    action: () => {
+      tour.next();
+    },
+  };
+  const finishButton = {
+    text: 'Fertig',
+    action: () => {
+      tour.complete();
+    },
+  };
+
+  const hasBanditToggle = Boolean(document.querySelector('[data-tour-target="bandit-toggle-group"]'));
+  const hasInvestmentCounter = Boolean(document.querySelector('.capital-invest-counter'));
+  const hasPortfolioButton = Boolean(document.querySelector('[data-tour-target="open-portfolio-manager"]'));
+  const hasInvestButton = Boolean(document.querySelector('[data-tour-target="invest-button"]'));
+  const hasCompareButton = Boolean(document.querySelector('[data-tour-target="navigate-compare"]'));
+  const hasResetButton = Boolean(document.querySelector('[data-tour-target="reset-bandit"]'));
+  let stepsAdded = false;
+
+  if (hasBanditToggle) {
+    tour.addStep({
+      id: 'choose-bandit',
+      title: 'Bandit auswählen',
+      text: 'Wählen Sie oben den für Ihr Szenario passenden Bandit aus oder fahren Sie über „Weiter“ fort.',
+      attachTo: {
+        element: '[data-tour-target="bandit-toggle-group"]',
+        on: 'bottom',
+      },
+      advanceOn: {
+        selector: '[data-tour-target="bandit-toggle-group"] .text-nav-button',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+    });
+    stepsAdded = true;
+  }
+
+  if (hasInvestmentCounter) {
+    tour.addStep({
+      id: 'investment-count',
+      title: 'Investments festlegen',
+      text: 'Nutzen Sie die Plus- oder Minus-Buttons, um die Anzahl der verfügbaren Investments zu verändern, oder überspringen Sie den Schritt mit „Weiter“.',
+      attachTo: {
+        element: '.capital-invest-counter',
+        on: 'bottom',
+      },
+      advanceOn: {
+        selector: '.capital-invest-counter-button',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+    });
+    stepsAdded = true;
+  }
+
+  if (hasPortfolioButton) {
+    tour.addStep({
+      id: 'open-portfolio-manager',
+      title: 'Portfolio verwalten',
+      text: 'Öffnen Sie den Portfoliomanager, um die aktiven Aktien anzupassen, oder setzen Sie mit „Weiter“ fort.',
+      attachTo: {
+        element: '[data-tour-target="open-portfolio-manager"]',
+        on: 'left',
+      },
+      advanceOn: {
+        selector: '[data-tour-target="open-portfolio-manager"]',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+    });
+    stepsAdded = true;
+  }
+
+  if (hasPortfolioButton) {
+    tour.addStep({
+      id: 'configure-portfolio',
+      title: 'Aktien auswählen',
+      text: 'Aktivieren oder deaktivieren Sie Aktien nach Bedarf und speichern Sie die Auswahl – oder klicken Sie auf „Weiter“, wenn Sie den Überblick nur ansehen möchten.',
+      attachTo: {
+        element: '[data-tour-target="portfolio-manager-modal"]',
+        on: 'top',
+      },
+      beforeShowPromise: async () => {
+        if (!showStockManager.value) {
+          showStockManager.value = true;
+          await nextTick();
+        }
+
+        await waitForElement('[data-tour-target="portfolio-manager-modal"]');
+      },
+      advanceOn: {
+        selector: '[data-tour-target="portfolio-manager-save"]',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+      modalOverlayOpeningPadding: 8,
+      when: {
+        hide: () => {
+          if (showStockManager.value) {
+            showStockManager.value = false;
+          }
+        },
+      },
+    });
+    stepsAdded = true;
+  }
+
+  if (hasInvestButton) {
+    tour.addStep({
+      id: 'start-bandit',
+      title: 'Simulation starten',
+      text: 'Starten Sie nun eine Investition, um die Auswirkungen zu sehen, oder fahren Sie über „Weiter“ direkt zum Vergleich.',
+      attachTo: {
+        element: '[data-tour-target="invest-button"]',
+        on: 'left',
+      },
+      beforeShowPromise: () => waitForElement('[data-tour-target="invest-button"]'),
+      advanceOn: {
+        selector: '[data-tour-target="invest-button"]',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+    });
+    stepsAdded = true;
+  }
+
+  if (hasCompareButton) {
+    tour.addStep({
+      id: 'navigate-compare',
+      title: 'Algorithmen vergleichen',
+      text: 'Öffnen Sie mit einem Klick auf „Vergleich mit weiteren Algorithmen“ die Auswertungsseite oder nutzen Sie „Weiter“, um automatisch dorthin zu springen.',
+      attachTo: {
+        element: '[data-tour-target="navigate-compare"]',
+        on: 'left',
+      },
+      beforeShowPromise: () => waitForElement('[data-tour-target="navigate-compare"]'),
+      advanceOn: {
+        selector: '[data-tour-target="navigate-compare"]',
+        event: 'click',
+      },
+      buttons: [exitButton, nextButton],
+    });
+    stepsAdded = true;
+  }
+
+  tour.addStep({
+    id: 'compare-overview',
+    title: 'Ergebnisse im Überblick',
+    text: 'Hier sehen Sie, wie sich Ihr Ergebnis gegenüber den Referenz-Algorithmen schlägt. Nehmen Sie sich einen Moment für die Diagramme.',
+    attachTo: {
+      element: '[data-tour-target="compare-overview"]',
+      on: 'top',
+    },
+    beforeShowPromise: async () => {
+      await navigateTo('/algo');
+      await waitForElement('[data-tour-target="compare-overview"]');
+    },
+    buttons: [exitButton, nextButton],
+  });
+  stepsAdded = true;
+
+  tour.addStep({
+    id: 'compare-back',
+    title: 'Zurück zur Simulation',
+    text: 'Kehren Sie über „Zurück“ zur Hauptansicht zurück – oder klicken Sie auf „Weiter“, wir übernehmen das für Sie.',
+    attachTo: {
+      element: '[data-tour-target="compare-back"]',
+      on: 'bottom',
+    },
+    beforeShowPromise: async () => {
+      await navigateTo('/algo');
+      await waitForElement('[data-tour-target="compare-back"]');
+    },
+    advanceOn: {
+      selector: '[data-tour-target="compare-back"]',
+      event: 'click',
+    },
+    buttons: [exitButton, nextButton],
+  });
+  stepsAdded = true;
+
+  if (hasResetButton) {
+    tour.addStep({
+      id: 'reset-bandit',
+      title: 'Simulation zurücksetzen',
+      text: 'Setzen Sie Ihre Simulation zurück, um einen neuen Durchlauf zu starten, oder beenden Sie die Tour über „Fertig“.',
+      attachTo: {
+        element: '[data-tour-target="reset-bandit"]',
+        on: 'left',
+      },
+      beforeShowPromise: async () => {
+        await navigateTo('/');
+        await waitForElement('[data-tour-target="reset-bandit"]');
+      },
+      advanceOn: {
+        selector: '[data-tour-target="reset-bandit"]',
+        event: 'click',
+      },
+      buttons: [exitButton, finishButton],
+    });
+    stepsAdded = true;
+  }
+
+  if (!stepsAdded) {
+    return null;
+  }
+
+  tour.on('complete', () => {
+    shepherdTour.value = null;
+  });
+
+  tour.on('cancel', () => {
+    shepherdTour.value = null;
+  });
+
+  return tour;
+}
+
+async function startInteractiveIntroduction() {
+  if (banditStore.banditInProgress) {
+    alert('Bitte setzen Sie die laufende Simulation zurück, bevor Sie die Einführung starten.');
+    return;
+  }
+
+  const banditToggleGroup = document.querySelector('[data-tour-target="bandit-toggle-group"]');
+
+  if (!banditToggleGroup) {
+    alert('Die Navigation zur Bandit-Auswahl wurde nicht gefunden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.');
+    return;
+  }
+
+  showInstructionModal.value = false;
+  await nextTick();
+
+  destroyTour();
+
+  const tour = createInteractiveTour();
+
+  if (!tour) {
+    alert('Die interaktive Einführung konnte nicht gestartet werden. Bitte versuchen Sie es erneut.');
+    return;
+  }
+
+  shepherdTour.value = tour;
+
+  try {
+    tour.start();
+  } catch (error) {
+    console.error('Shepherd tour failed to start', error);
+    alert('Die interaktive Einführung konnte nicht gestartet werden. Bitte versuchen Sie es erneut.');
+    destroyTour();
+  }
+}
+
 // open stock manager modal
 function onEditStock() {
   showStockManager.value = true;
@@ -143,6 +492,12 @@ const tableHeaders: Ref<Header[]> = computed(() => {
 });
 const tableRows = computed(() => banditStore.displayData as unknown as Row[]);
 
+const investmentsDisplayCount = computed(() =>
+  banditStore.banditInProgress
+    ? banditStore.remainingInvestments
+    : banditStore.possibleInvestments
+);
+
 const resetBandit = () => {
   banditStore.resetBandit();
   algorithmStore.resetAlgorithms();
@@ -154,7 +509,7 @@ const resetBandit = () => {
   <div class="home-view">
     <!-- Headbar -->
     <div class="main-home-headbar">
-      <div class="text-nav-button-group">
+      <div class="text-nav-button-group" data-tour-target="bandit-toggle-group">
         <div v-for="bandit in banditStore.bandits" class="text-nav-button" :key="bandit.key"
           :class="{ active: banditStore.activeBandit === bandit.key }" @click="onBanditChange(bandit.key)">
           {{ bandit.name }}
@@ -209,7 +564,7 @@ const resetBandit = () => {
             </div>
           </div>
           <div class="capital-box">
-            <div class="capital-box-row">
+            <div class="capital-box-row" v-if="false">
               <div>
                 Startkapital:
               </div>
@@ -217,7 +572,7 @@ const resetBandit = () => {
                 {{ banditStore.startingCapital }} €
               </div>
             </div>
-            <div class="capital-box-row">
+            <div class="capital-box-row" v-if="false">
               <div>
                 Restkapital:
               </div>
@@ -232,21 +587,27 @@ const resetBandit = () => {
                   <img src="../assets/minus.svg" alt="Plus" width="20" height="20" />
                 </button>
                 <div>
-                  {{ banditStore.possibleInvestments }}
+                  {{ investmentsDisplayCount }}
                 </div>
-                <button class="capital-invest-counter-button" @click="banditStore.possibleInvestments  = banditStore.possibleInvestments + 2" :disabled="banditStore.possibleInvestments >= 100" v-if="banditStore.banditInProgress === false">
+                <button
+                  class="capital-invest-counter-button"
+                  @click="banditStore.possibleInvestments  = banditStore.possibleInvestments + 2"
+                  :disabled="banditStore.possibleInvestments >= 100"
+                  v-if="banditStore.banditInProgress === false"
+                  data-tour-target="increase-investments"
+                >
                   <img src="../assets/add.svg" alt="Minus" width="20" height="20" />
                 </button>
               </div>
             </div>
-            <!-- <div class="capital-box-row">
+            <div class="capital-box-row" v-if="banditStore.activeBandit !== 'bernoulli'">
               <div>
                 Per Investment:
               </div>
               <div>
-                {{ Math.round(banditStore.investmentStep * 100) / 100 }}
+                {{ Math.round(banditStore.investmentStep * 100) / 100 }} €
               </div>
-            </div> -->
+            </div>
           </div>
         </div>
         <!-- Hier das Diagramm für den Bandit -->
@@ -279,8 +640,13 @@ const resetBandit = () => {
         <div class="sidebar-portfolio">
           <h3>Aktien im Portfolio</h3>
           <div class="sidebar-portfolio-controls">
-            <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress">Aktienportfolio verwalten</button>
-            <button class="white-button button-red" @click="resetBandit" :disabled="!banditStore.banditInProgress">Zurücksetzen</button>
+            <button class="white-button" @click="onEditStock" :disabled="banditStore.banditInProgress" data-tour-target="open-portfolio-manager">Aktienportfolio verwalten</button>
+            <button
+              class="white-button button-red"
+              @click="resetBandit"
+              :disabled="!banditStore.banditInProgress"
+              data-tour-target="reset-bandit"
+            >Zurücksetzen</button>
           </div>
           <div class="portfolio-item" v-for="selectedStock in banditStore.selectedStocks" :key="selectedStock.stock.name">
             <img :src="selectedStock.stock.logo_url" alt="Logo" class="portfolio-item-logo" />
@@ -288,12 +654,21 @@ const resetBandit = () => {
               <div class="portfolio-item-title">{{ selectedStock.stock.name }}</div>
               <div class="portfolio-item-price">{{ selectedStock.stock.price }} €</div>
             </div>
-            <button class="portfolio-item-button" @click="onInvest(selectedStock)" :disabled="!banditStore.isInvestmentPossible">
+            <button
+              class="portfolio-item-button"
+              @click="onInvest(selectedStock)"
+              :disabled="!banditStore.isInvestmentPossible"
+              :data-tour-target="selectedStock === banditStore.selectedStocks[0] ? 'invest-button' : undefined"
+            >
               Investieren
             </button>
           </div>
           <div class="sidebar-portfolio-controls">
-            <button class="white-button" @click="onCompareAlgorithms">Vergleich mit weiteren Algorithmen</button>
+            <button
+              class="white-button"
+              @click="onCompareAlgorithms"
+              data-tour-target="navigate-compare"
+            >Vergleich mit weiteren Algorithmen</button>
           </div>
         </div>
       </div>
@@ -308,13 +683,45 @@ const resetBandit = () => {
       <h2 class="modal__title">Anleitung</h2>
     </template>
     <div class="instruction-modal-content">
-      <p>Hier wird die Anleitung angezeigt.</p>
+      <div class="instruction-scenario">
+        <p>
+          Willkommen im Investmentlabor! In diesem Szenario übernehmen Sie die Rolle einer Analystin, die mit begrenzten Ressourcen das beste Anlageinstrument für das aktuelle Marktumfeld finden soll.
+        </p>
+        <ul class="instruction-scenario__highlights">
+          <li>Sie wählen zwischen einem Gaussian- und einem Bernoulli-Bandit – je nach Art des erwarteten Rewards.</li>
+          <li>Ihr Budget verteilt sich auf mehrere Investments, die Sie flexibel anpassen können.</li>
+          <li>Das Ziel ist es, durch geschicktes Ausprobieren und Ausnutzen die renditestärkste Aktie zu identifizieren.</li>
+        </ul>
+        <p>
+          Wenn Sie bereit sind, startet eine interaktive Einführung direkt in der Anwendung. Dabei werden die wichtigsten Elemente hervorgehoben und Sie kommen nur durch echte Interaktion weiter.
+        </p>
+      </div>
     </div>
     <template #footer>
-      <button class="white-button" type="button" @click="showInstructionModal = false">Schließen</button>
+      <div class="instruction-modal-footer">
+        <button
+          class="white-button"
+          type="button"
+          @click="showInstructionModal = false"
+        >
+          Schließen
+        </button>
+        <button
+          class="white-button"
+          type="button"
+          @click="startInteractiveIntroduction"
+        >
+          Interaktive Einführung starten
+        </button>
+      </div>
     </template>
   </Modal>
-  <Modal v-model="showStockManager" :close-on-backdrop="true" :close-on-esc="true">
+  <Modal
+    v-model="showStockManager"
+    :close-on-backdrop="true"
+    :close-on-esc="true"
+    data-tour-target="portfolio-manager-modal"
+  >
     <template #header>
       <h2 class="modal_stockManager_title">Portfolio bearbeiten</h2>
     </template>
@@ -348,7 +755,7 @@ const resetBandit = () => {
     <template #footer>
       <div class="modal_stockManager_footer">
         <button class="white-button button-red" type="button" @click="showStockManager = false">Abbrechen</button>
-        <button class="white-button" type="button" @click="saveStocks">Speichern</button>
+        <button class="white-button" type="button" @click="saveStocks" data-tour-target="portfolio-manager-save">Speichern</button>
       </div>
     </template>
   </Modal>
@@ -634,4 +1041,33 @@ const resetBandit = () => {
   margin-bottom: 1rem;
 }
 
+.instruction-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.instruction-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.instruction-scenario__highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.instruction-scenario__highlights li {
+  list-style: disc;
+}
+
+.instruction-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+}
 </style>
