@@ -1,4 +1,4 @@
-import { ref, computed, type Ref} from 'vue'
+import { ref, computed, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { AlgoInvestment, DisplayDataPoint } from '@/types/investment'
 import { eGreedy_bernoulli, eGreedy_gaussian, greedy_bernoulli, greedy_gaussian, OIV_bernoulli, OIV_gaussian } from '@/algorithms/e_greedy_OIV'
@@ -6,6 +6,7 @@ import { useBanditStore } from './bandit'
 import { thompsonSampling_bernoulli, thompsonSampling_gaussian } from '@/algorithms/thompsonSampling'
 import { upperConfidenceBound_bernoulli, upperConfidenceBound_gaussian } from '@/algorithms/UpperConfidenceBound'
 import { gradientBandit_bernoulli, gradientBandit_gaussian } from '@/algorithms/gradientBandit'
+import { buildDisplayDataPoints } from './utils/displayData'
 
 export const useAlgorithmStore = defineStore('algorithm', () => {
   var banditStore = useBanditStore()
@@ -36,8 +37,6 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
     investmentsOptimisticInitial.value = []
     investmentsUserAlgorithm.value = []
 
-    console.log("run algorithms for bandit: " + banditStore.activeBandit)
-
     if (banditStore.activeBandit == 'bernoulli') {
       greedy_bernoulli()
       eGreedy_bernoulli()
@@ -59,7 +58,6 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   }
 
   function resetAlgorithms() {
-    console.log("reset algorithms")
     algorithmsInProgress.value = false
     algorithmsCompleted.value = false
 
@@ -72,251 +70,62 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
     investmentsUserAlgorithm.value = []
   }
 
-   const greedyDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
+  const createAlgorithmDataPoints = (
+    source: Ref<AlgoInvestment[]>,
+    accessor: (investment: AlgoInvestment) => number | null,
+  ): Ref<DisplayDataPoint[]> => {
+    return computed(() => {
+      const activeBandit = banditStore.activeBandit as 'bernoulli' | 'gaussian'
 
-    investmentsGreedy.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.greedyReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.greedyReturn !== null) {
-        isWon = investment.greedyReturn > 0;
-        winValue = investment.greedyReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
-
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
+      return buildDisplayDataPoints<AlgoInvestment>({
+        investments: source.value,
+        activeBandit,
+        startingCapital: banditStore.startingCapital,
+        investmentStep: banditStore.investmentStep,
+        getStockName: investment => investment.stock.stock.name,
+        getBernoulliResult: activeBandit === 'bernoulli'
+          ? investment => {
+              const reward = accessor(investment)
+              return reward !== null ? reward > 0 : null
+            }
+          : undefined,
+        getGaussianResult: activeBandit === 'gaussian'
+          ? accessor
+          : undefined,
+        formatBanditResult: () => '',
+      })
     })
+  }
 
-    return dataPoints;
-  })
+  const greedyDataPoints = createAlgorithmDataPoints(
+    investmentsGreedy,
+    investment => investment.greedyReturn,
+  )
 
-  const thompsonSamplingDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
+  const thompsonSamplingDataPoints = createAlgorithmDataPoints(
+    investmentsThompson,
+    investment => investment.thompsonReturn,
+  )
 
-    investmentsThompson.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.thompsonReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.thompsonReturn !== null) {
-        isWon = investment.thompsonReturn > 0;
-        winValue = investment.thompsonReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }   
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
+  const upperConfidenceBoundDataPoints = createAlgorithmDataPoints(
+    investmentsUCB,
+    investment => investment.ucbReturn,
+  )
 
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
-    })
+  const eGreedyDataPoints = createAlgorithmDataPoints(
+    investmentsEGreedy,
+    investment => investment.eGreedyReturn,
+  )
 
-    return dataPoints;
-  })
+  const oivDataPoints = createAlgorithmDataPoints(
+    investmentsOptimisticInitial,
+    investment => investment.optimisticInitialReturn,
+  )
 
-  const upperConfidenceBoundDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
-
-    investmentsUCB.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.ucbReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.ucbReturn !== null) {
-        isWon = investment.ucbReturn > 0;
-        winValue = investment.ucbReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }   
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
-
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
-    })
-
-    return dataPoints;
-  })
-
-  const eGreedyDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
-
-    investmentsEGreedy.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.eGreedyReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.eGreedyReturn !== null) {
-        isWon = investment.eGreedyReturn > 0;
-        winValue = investment.eGreedyReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }   
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
-
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
-    })
-
-    return dataPoints;
-  })
-
-  const oivDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
-
-    investmentsOptimisticInitial.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.optimisticInitialReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.optimisticInitialReturn !== null) {
-        isWon = investment.optimisticInitialReturn > 0;
-        winValue = investment.optimisticInitialReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }   
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
-
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
-    })
-
-    return dataPoints;
-  })
-
-  const gradientDataPoints: Ref<DisplayDataPoint[]> = computed(() => {
-    var yCounter = 0;
-    var winSum = 0;
-    var portfolioValue = banditStore.startingCapital;
-    var dataPoints: DisplayDataPoint[] = [];
-    dataPoints.push({ x: 0, y: 0, label: "Start", stock: "-", portfolioValue: "10000", banditResult: "-" });
-
-    investmentsGradient.value.forEach((investment, index) => {
-      var isWon = false;
-      var winValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        isWon = Boolean(investment.gradientReturn);
-      } else if (banditStore.activeBandit === 'gaussian' && investment.gradientReturn !== null) {
-        isWon = investment.gradientReturn > 0;
-        winValue = investment.gradientReturn * banditStore.investmentStep;
-        winSum += winValue;
-        portfolioValue += winValue;
-      }   
-      if (isWon) {
-        yCounter += 1;
-      }
-      var yValue = 0;
-      if (banditStore.activeBandit === 'bernoulli') {
-        yValue = yCounter;
-      } else if (banditStore.activeBandit === 'gaussian') {
-        yValue = winSum;
-      }
-
-      dataPoints.push({
-        x: index + 1,
-        y: yValue,
-        label: `Investment ${index + 1}`,
-        stock: investment.stock.stock.name,
-        portfolioValue: (portfolioValue).toFixed(2),
-        banditResult: ""
-      });
-    })
-
-    return dataPoints;
-  })
+  const gradientDataPoints = createAlgorithmDataPoints(
+    investmentsGradient,
+    investment => investment.gradientReturn,
+  )
 
 
   return { algorithmsInProgress, algorithmsCompleted, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
