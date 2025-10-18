@@ -8,7 +8,7 @@ import CompareChartAccuracy from '@/components/CompareChartAccuracy.vue';
 import Modal from '@/components/Modal.vue';
 import MathTex from '@/components/MathTex.vue';
 import renderMathInElement from 'katex/contrib/auto-render';
-import { algorithms_evaluation } from '@/stores/evaluation';
+import { algorithms_evaluation } from '@/assets/utils/evaluation'
 import type { AlgorithmKey } from '@/types/evaluations';
 
 // ----------------------- general setup -----------------------
