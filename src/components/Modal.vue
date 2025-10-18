@@ -34,7 +34,7 @@
 
           <footer class="modal__footer">
             <slot name="footer">
-              <button class="btn" type="button" @click="close()">Close</button>
+              <button class="white-button" type="button" @click="close()">Close</button>
             </slot>
           </footer>
         </div>
@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
 }
 .modal {
   background: black;
-  width: min(640px, 92vw);
+  width: 70vw;
   max-height: 86vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -137,6 +137,13 @@ onBeforeUnmount(() => {
   border: 2px solid gray;
 
 }
+
+@media (max-width: 640px) {
+  .modal {
+    width: 90vw;
+  }
+}
+
 .modal__header, .modal__footer {
   padding: 1rem 1.25rem;
   background: black;
@@ -162,16 +169,6 @@ onBeforeUnmount(() => {
 .modal__content {
   padding: 1.25rem;
   overflow: auto;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 0.9rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  background: black;
-  cursor: pointer;
 }
 
 .modal-fade-enter-active,
