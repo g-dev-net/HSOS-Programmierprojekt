@@ -545,7 +545,7 @@ function formatSelectedArmValue(value: number) {
             </div>
           </div>
           <div style="margin-top: 1rem;">
-            <button class="white-button" @click="openCompareModal">Vergleich Algorithmen Parameter</button>
+            <button class="white-button" @click="openCompareModal">Algorithmen mehrfach Simulieren</button>
             <div class="sidebar-selected-arms">
               <h3>Ausgewählte Arme</h3>
               <p v-if="selectedArmSummaries.length === 0" class="selected-arm-empty">
@@ -825,25 +825,24 @@ function formatSelectedArmValue(value: number) {
   <Modal v-model="compareModalVisible" :close-on-backdrop="true" :close-on-esc="true">
     <template #header>
       <div style="display: flex; flex-direction: column;">
-        <h2 class="modal__title">Vergleich Algorithmen Parameter</h2>
-        <div style="font-size:1rem;">
-        </div>
-        Wähle die gewünschten Durchläufe sowie die gewünschten Iterationen aus. Für jeden Algorithmus kann (wenn
-        verfügbar) der Parameter bis zu 5 Mal eingestellt werden.
-        Wird "Plot" gedrückt, werden für alle über den Haken ausgewählte Algorithmen sowie den dafür eingetragenen
-        Parametern ein Graph erstellt. Dieser stellt die "optimal actions",
-        also die optimalen Aktionen, prozentual dar. Je mehr ausgewählt wird desto länger dauert das Plotten.
+        <h2 class="modal__title">Algorithmen mehrfach Simulieren</h2>
       </div>
     </template>
     <div class="theorie-modal-content">
+      <div style="font-size:1rem;">
+        </div>
+        Wähle die gewünschte Anzahl an Durchläufen und Iterationen aus. Für jeden Algorithmus kann (sofern verfügbar) der jeweilige Parameter bis zu fünfmal angepasst werden.
+        Durch Klick auf „Plot“ wird für alle markierten Algorithmen und deren eingestellte Parameter ein Graph erzeugt. Dieser zeigt den prozentualen Anteil der optimal actions (optimalen Entscheidungen) an.
+        Beachte: Je mehr Algorithmen und Parameter ausgewählt werden, desto länger dauert die Erstellung des Plots. Die Anzahl der Arme ergibt sich aus den zuvor gewählten Aktien.
+      <hr style="margin: 1rem;"></hr>
       <!-- Durchläufe für alle Algorithmen -->
       <div class="algorithm-toggle-label" style="margin-bottom:1rem;">
         <label>
           <input type="number" min="50" max="1000" :step="1" v-model.number="globalRuns" placeholder="z.B. 500" />
           unabhängige Durchläufe mit jeweils
           <input type="number" min="50" max="1500" :step="1" v-model.number="globalIterations" placeholder="z.B. 700" />
-          Iterationen. Arme:
-          <input type="number" min="1" max="10" :step="1" v-model.number="globalArmCount" placeholder="z.B. 7" />
+          Iterationen. Arme: {{ banditStore.selectedStocks.length }}
+          <!--<input type="number" min="1" max="10" :step="1" v-model.number="globalArmCount" placeholder="z.B. 7" />-->
         </label>
       </div>
       <div class="algorithm-toggle-group">
