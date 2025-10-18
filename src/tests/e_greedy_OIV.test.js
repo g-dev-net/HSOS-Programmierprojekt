@@ -146,22 +146,22 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
         { stock: { id: 1, name: 'Bad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
         { stock: { id: 2, name: 'LessBad' }, bernoulli_param: 0.2, gaussian_param: 0.03 }
       ];
-      banditStore.possibleInvestments = 5;
+      banditStore.possibleInvestments = 10;
       
-      // Simulate: Bad returns -0.5, LessBad returns -0.2 (better!)
+      // Mit Cold-Start (beide avg=0) wird zuerst index 0 (Bad) gewählt
+      // Wenn Bad schlechter ist als LessBad, sollte nach erstem Versuch gewechselt werden
       gaussian
         .mockReturnValueOnce(-0.5)   // Bad tried first: avg = -0.5
-        .mockReturnValueOnce(-0.2)   // LessBad tried: avg = -0.2 (better!)
-        .mockReturnValue(-0.2);      // LessBad should be selected from now on
+        .mockReturnValue(-0.2);      // LessBad returns -0.2 (better!)
       
       greedy_gaussian();
       
       const badInvestments = algorithmStore.investmentsGreedy.filter(inv => inv.stock.stock.name === 'Bad');
       const lessBadInvestments = algorithmStore.investmentsGreedy.filter(inv => inv.stock.stock.name === 'LessBad');
       
-      // Bad should be tried once, then LessBad dominates (has better avg: -0.2 > -0.5)
+      // Nach Cold-Start sollte LessBad dominieren (besserer Durchschnitt)
       expect(badInvestments.length).toBe(1);
-      expect(lessBadInvestments.length).toBe(4);
+      expect(lessBadInvestments.length).toBe(9);
     });
 
     it('should exploit best arm consistently after cold-start', () => {

@@ -64,6 +64,7 @@ async function comp_many_runs(
 
     // Reset previous results
     resetCompareResults();
+    compareResultsCache = null; // Reset Cache
 
     // Set up for comparison mode
     banditStore.possibleInvestments = iterations;
@@ -147,37 +148,52 @@ async function runAlgorithmMultipleTimes(
     };
     
     // Array um für jede Iteration zu tracken, wie oft der optimale Arm gewählt wurde
-    const optimalChoicesPerIteration: number[] = Array.from({ length: iterations }, () => 0);
+    const optimalChoicesPerIteration: number[] = new Array(iterations).fill(0);
+    
+    // Cache selectedStocks für schnelleren Zugriff
+    const stocks = banditStore.selectedStocks;
+    const stocksToUse = Math.min(armCount, stocks.length);
 
     // Run the algorithm multiple times
     for (let run = 0; run < runs; run++) {
         if (cancelCalculation?.value) break;
         
         // 1. Generiere neue zufällige Werte für die angegebene Anzahl von Armen
-        // Nutze nur die ersten armCount Arme
-        for (let i = 0; i < Math.min(armCount, banditStore.selectedStocks.length); i++) {
-            banditStore.selectedStocks[i].bernoulli_param = generateBernoulliParam();
-            banditStore.selectedStocks[i].gaussian_param = generateGaussianParam();
+        for (let i = 0; i < stocksToUse; i++) {
+            stocks[i].bernoulli_param = generateBernoulliParam();
+            stocks[i].gaussian_param = generateGaussianParam();
         }
 
-        // 2. Bestimme den optimalen Arm für diesen Run (nur die ersten armCount Arme)
-        const stocks = banditStore.selectedStocks.slice(0, armCount);
-        const optimalArmId = bandit === 'bernoulli'
-            ? stocks.reduce((best, stock) => stock.bernoulli_param > best.bernoulli_param ? stock : best, stocks[0]).stock.id
-            : stocks.reduce((best, stock) => stock.gaussian_param > best.gaussian_param ? stock : best, stocks[0]).stock.id;
+        // 2. Bestimme den optimalen Arm für diesen Run - optimiert ohne slice/reduce
+        let optimalStock = stocks[0];
+        if (bandit === 'bernoulli') {
+            for (let i = 1; i < stocksToUse; i++) {
+                if (stocks[i].bernoulli_param > optimalStock.bernoulli_param) {
+                    optimalStock = stocks[i];
+                }
+            }
+        } else {
+            for (let i = 1; i < stocksToUse; i++) {
+                if (stocks[i].gaussian_param > optimalStock.gaussian_param) {
+                    optimalStock = stocks[i];
+                }
+            }
+        }
+        const optimalArmId = optimalStock.stock.id;
 
         // 3. Führe den Algorithmus für diese Iteration durch
         const chosenArms = await runSingleAlgorithm(bandit, algoId, paramValue);
         
-        // 4. Prüfe für jede Iteration, ob der optimale Arm gewählt wurde
-        chosenArms.forEach((armId, iteration) => {
-            if (iteration < iterations && armId === optimalArmId) {
-                optimalChoicesPerIteration[iteration]++;
+        // 4. Prüfe für jede Iteration, ob der optimale Arm gewählt wurde - optimiert
+        const len = Math.min(chosenArms.length, iterations);
+        for (let i = 0; i < len; i++) {
+            if (chosenArms[i] === optimalArmId) {
+                optimalChoicesPerIteration[i]++;
             }
-        });
+        }
 
-        // Progress-Update alle 10 Runs (statt 5 für bessere Performance)
-        if (progressCallback && run % 10 === 0) {
+        // Progress-Update nur alle 50 Runs (statt 10) für bessere Performance
+        if (progressCallback && run % 50 === 0) {
             const percentage = totalParameters ? ((currentParameter! - 1) / totalParameters * 100) + (run / runs / totalParameters * 100) : 0;
             progressCallback({
                 currentAlgorithm: algoNames[algoId] || algoId,
@@ -189,17 +205,21 @@ async function runAlgorithmMultipleTimes(
             });
         }
 
-        // Allow UI to update every 50 runs for better performance
-        if (run % 50 === 0) {
+        // UI-Update nur alle 200 Runs (statt 50) und nur wenn nötig
+        if (run % 200 === 0 && run > 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
 
     // 5. Berechne für jede Iteration den Prozentsatz der optimalen Wahl
-    const datapoints = optimalChoicesPerIteration.map((count, index) => {
-        const optimalPercentage = runs > 0 ? (count / runs) * 100 : 0;
-        return { iteration: index + 1, optimalPercentage };
-    });
+    const datapoints = new Array(iterations);
+    const runsFactor = runs > 0 ? 100 / runs : 0;
+    for (let i = 0; i < iterations; i++) {
+        datapoints[i] = {
+            iteration: i + 1,
+            optimalPercentage: optimalChoicesPerIteration[i] * runsFactor
+        };
+    }
 
     results.push({
         algorithmId: algoId,
@@ -208,6 +228,9 @@ async function runAlgorithmMultipleTimes(
         datapoints
     });
 }
+
+// Cache für compareResults Import (nur einmal importieren)
+let compareResultsCache: any = null;
 
 async function runSingleAlgorithm(
     bandit: 'bernoulli' | 'gaussian',
@@ -219,11 +242,14 @@ async function runSingleAlgorithm(
     // Setze den aktuellen Parameter im Store, damit setParamAlgo ihn nutzen kann
     algorithmStore.currentCompareParam = typeof paramValue === 'number' ? paramValue : undefined;
     
-    // Import compareResults to access the stored arm IDs
-    const { compareResults } = await import('@/stores/compare_algos_store');
+    // Import compareResults nur einmal (Cache)
+    if (!compareResultsCache) {
+        const module = await import('@/stores/compare_algos_store');
+        compareResultsCache = module.compareResults;
+    }
     
     // Get the map for this algorithm
-    const map = compareResults[algoId as keyof typeof compareResults] as Map<any, number[]>;
+    const map = compareResultsCache[algoId as keyof typeof compareResultsCache] as Map<any, number[]>;
     
     // WICHTIG: Lösche die Daten für diesen Parameter, damit der Run von vorne startet
     map.delete(paramValue);

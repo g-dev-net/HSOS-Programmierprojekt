@@ -136,6 +136,8 @@ const loadingModalVisible = ref(false);
 const plottedComparison = ref(false);
 const compareResults = ref<CompareResult[]>([]);
 const cancelCalculation = ref(false);
+const freezeCharts = ref(false); // Verhindert Neurendering während Vergleichsberechnung
+const savedPossibleInvestments = ref<number>(0); // Speichert possibleInvestments während Vergleich
 const progressStatus = ref({
   currentAlgorithm: '',
   currentParameter: 0,
@@ -154,10 +156,10 @@ const popupExpanded = ref<Record<string, boolean>>({
 
 // ----------------------- Parameter Configuration -----------------------
 const paramConfig = {
-  ucb: { label: 'c-Wert', min: 0.1, max: 10, step: 0.1, default: setParamAlgo('ucb'), placeholder: 'z.B. 2', maxFields: 5 },
-  eGreedy: { label: 'Epsilon', min: 0, max: 1, step: 0.01, default: setParamAlgo('eGreedy'), placeholder: 'z.B. 0.1', maxFields: 5 },
-  oiv: { label: 'Initval', min: 0, max: 100, step: 1, default: setParamAlgo('OIV'), placeholder: 'z.B. 5', maxFields: 5 },
-  gradient: { label: 'Schritt', min: 0, max: 1, step: 0.01, default: setParamAlgo('gradient'), placeholder: 'z.B. 0.1', maxFields: 5 },
+  ucb: { label: 'c-Wert', min: 0.5, max: 5, step: 0.5, default: setParamAlgo('ucb'), placeholder: 'z.B. 2', maxFields: 5 },
+  eGreedy: { label: 'Epsilon', min: 0, max: 1, step: 0.05, default: setParamAlgo('eGreedy'), placeholder: 'z.B. 0.1', maxFields: 5 },
+  oiv: { label: 'Initval', min: 0, max: 20, step: 2, default: setParamAlgo('OIV'), placeholder: 'z.B. 5', maxFields: 5 },
+  gradient: { label: 'Schritt', min: 0.01, max: 0.5, step: 0.05, default: setParamAlgo('gradient'), placeholder: 'z.B. 0.1', maxFields: 5 },
 } as const;
 
 const showParamInput = (id: string) => id !== 'greedy' && id !== 'thompson';
@@ -178,32 +180,116 @@ const addParamField = (id: string) => {
   const config = paramConfig[id as keyof typeof paramConfig];
   const params = popupParams.value[id];
   if (config && params.length < config.maxFields) {
-    // Default-Wert als Basis, dann Default + n*step
-    const base = config.placeholder?.startsWith('z.B.') ? Number(config.placeholder.replace('z.B.', '').trim()) : config.min;
-    const defaultValue = config.default ?? config.min;
-    let newValue = +(defaultValue + params.length * config.step).toFixed(10);
-    // Falls Wert schon vorhanden, weiterzählen
-    while (params.includes(newValue) && newValue <= config.max) {
-      newValue = +(newValue + config.step).toFixed(10);
+    let newValue: number;
+    
+    // Erster Parameter: Nutze Default-Wert
+    if (params.length === 0) {
+      newValue = config.default ?? config.min;
+    } else {
+      // Weitere Parameter: Generiere zufälligen Wert im gültigen Bereich
+      const range = config.max - config.min;
+      const randomValue = config.min + Math.random() * range;
+      // Runde auf nächste Schrittweite
+      newValue = Math.round(randomValue / config.step) * config.step;
+      // Stelle sicher, dass der Wert nicht bereits existiert
+      let attempts = 0;
+      while (params.includes(newValue) && attempts < 100) {
+        const randomValue = config.min + Math.random() * range;
+        newValue = Math.round(randomValue / config.step) * config.step;
+        attempts++;
+      }
+      // Falls nach 100 Versuchen kein einzigartiger Wert gefunden: Inkrementiere vom letzten Wert
+      if (params.includes(newValue)) {
+        const lastValue = params[params.length - 1];
+        newValue = +(lastValue + config.step).toFixed(10);
+        while (params.includes(newValue) && newValue <= config.max) {
+          newValue = +(newValue + config.step).toFixed(10);
+        }
+      }
     }
-    if (newValue <= config.max) {
+    
+    // Begrenze auf Min/Max und runde auf Schrittweite
+    newValue = Math.max(config.min, Math.min(config.max, newValue));
+    newValue = +(Math.round(newValue / config.step) * config.step).toFixed(10);
+    
+    if (newValue <= config.max && !params.includes(newValue)) {
       addAlgorithmParam(id, newValue, params.length);
     }
   }
 };
 
 function onParamInput(event: Event, algoId: string, idx: number) {
-  const value = Number((event.target as HTMLInputElement).value);
-  const min = getMin(algoId);
-  const max = getMax(algoId);
-  if (!isNaN(value) && value >= min && value <= max) {
-    // Setze Wert im globalen Store
-    addAlgorithmParam(algoId, value, idx);
+  const inputElement = event.target as HTMLInputElement;
+  const inputValue = inputElement.value.trim();
+  
+  // Prüfe auf ungültige Zeichen (Buchstaben, Sonderzeichen außer . und -)
+  if (inputValue !== '' && !/^-?\d*\.?\d*$/.test(inputValue)) {
+    alert(`Ungültige Eingabe! Bitte gib nur Zahlen ein (z.B. ${getParamPlaceholder(algoId)}).`);
+    // Setze zurück auf vorherigen Wert oder leer
+    const currentValue = popupParams.value[algoId]?.[idx];
+    inputElement.value = currentValue !== undefined ? String(currentValue) : '';
+    return;
   }
-  // Wenn Feld gelöscht, Wert entfernen
-  if ((event.target as HTMLInputElement).value === '') {
-    removeAlgorithmParam(algoId, idx);
+  
+  // Wenn Feld geleert, entferne Parameter (aber nur wenn nicht der erste)
+  if (inputValue === '') {
+    if (idx > 0) {
+      removeAlgorithmParam(algoId, idx);
+    } else {
+      // Erster Parameter darf nicht gelöscht werden
+      const config = paramConfig[algoId as keyof typeof paramConfig];
+      inputElement.value = String(config.default ?? config.min);
+    }
+    return;
   }
+  
+  const value = Number(inputValue);
+  const config = paramConfig[algoId as keyof typeof paramConfig];
+  const min = config.min;
+  const max = config.max;
+  const step = config.step;
+  
+  if (isNaN(value)) {
+    return;
+  }
+  
+  // Runde auf nächste gültige Schrittweite
+  let adjustedValue = Math.round(value / step) * step;
+  adjustedValue = +(adjustedValue.toFixed(10)); // Verhindere Floating-Point-Fehler
+  
+  // Begrenze auf Min/Max
+  if (adjustedValue < min) {
+    adjustedValue = min;
+    alert(`Wert zu klein! Minimalwert ist ${min}. Setze auf ${adjustedValue}.`);
+  } else if (adjustedValue > max) {
+    adjustedValue = max;
+    alert(`Wert zu groß! Maximalwert ist ${max}. Setze auf ${adjustedValue}.`);
+  }
+  
+  // Prüfe ob Wert bereits existiert (bei anderem Index)
+  const params = popupParams.value[algoId] || [];
+  const existsAtOtherIndex = params.some((p, i) => i !== idx && Math.abs(p - adjustedValue) < step / 2);
+  
+  if (existsAtOtherIndex) {
+    alert(`Dieser Wert (${adjustedValue}) existiert bereits!`);
+    const currentValue = params[idx];
+    inputElement.value = currentValue !== undefined ? String(currentValue) : '';
+    return;
+  }
+  
+  // Update Input-Feld falls Wert angepasst wurde
+  if (Math.abs(adjustedValue - value) > 0.0001) {
+    inputElement.value = String(adjustedValue);
+  }
+  
+  // Setze Wert im globalen Store
+  addAlgorithmParam(algoId, adjustedValue, idx);
+}
+
+// Fügt die fehlende Blur-Funktion hinzu, kann als Platzhalter dienen
+function onParamBlur(event: Event, algoId: string, idx: number) {
+  // Optional: Validierung oder weitere Logik beim Verlassen des Feldes
+  // Derzeit keine Aktion notwendig
 }
 
 const removeLastParamField = (id: string) => {
@@ -213,8 +299,8 @@ const removeLastParamField = (id: string) => {
 };
 
 // ----------------------- Modal Actions -----------------------
-let globalIterations = ref(150);
-let globalRuns = ref(150);
+let globalIterations = ref(700);
+let globalRuns = ref(500);
 let globalArmCount = ref(7);
 
 const theoryModalVisible = computed({
@@ -229,9 +315,27 @@ const openTheoryModal = (toggle: AlgorithmToggle) => {
 };
 
 const openCompareModal = () => {
+  // Reset Compare-Zustand beim Öffnen
+  plottedComparison.value = false;
+  compareResults.value = [];
+  cancelCalculation.value = false;
+  freezeCharts.value = false;
+  progressStatus.value = {
+    currentAlgorithm: '',
+    currentParameter: 0,
+    totalParameters: 0,
+    currentRun: 0,
+    totalRuns: 0,
+    percentage: 0
+  };
+  
+  // Setze Default-Werte für Run-Parameter
+  globalRuns.value = 500;
+  globalIterations.value = 700;
+  globalArmCount.value = 7;
+  
   compareModalVisible.value = true;
   loadingModalVisible.value = false;
-  plottedComparison.value = false;
 };
 
 const startComparison = () => {
@@ -262,6 +366,22 @@ function runPopupActions() {
 const startComparisonWait = async (selectedAlgos: any[], runs: number, iterations: number, armCount: number) => {
   loadingModalVisible.value = true;
   cancelCalculation.value = false;
+  
+  // Speichere possibleInvestments bevor sie geändert werden
+  savedPossibleInvestments.value = banditStore.possibleInvestments;
+  
+  // Speichere aktuelle Arm-Werte bevor sie sich ändern
+  frozenArmSummaries.value = banditStore.selectedStocks.map(selected => ({
+    id: selected.stock.id,
+    name: selected.stock.name,
+    logoUrl: selected.stock.logo_url,
+    value:
+      banditStore.activeBandit === 'bernoulli'
+        ? selected.bernoulli_param
+        : selected.gaussian_param,
+  }));
+  
+  freezeCharts.value = true; // Friere Charts ein während Berechnung
   progressStatus.value = { currentAlgorithm: '', currentParameter: 0, totalParameters: 0, currentRun: 0, totalRuns: 0, percentage: 0 };
 
   const progressCallback = (status: typeof progressStatus.value) => {
@@ -279,6 +399,8 @@ const startComparisonWait = async (selectedAlgos: any[], runs: number, iteration
     algorithmStore.algorithmsCompare = false;
     // Falls abgebrochen, nicht anzeigen
     if (cancelCalculation.value) {
+      freezeCharts.value = false; // Gebe Charts wieder frei
+      banditStore.possibleInvestments = savedPossibleInvestments.value; // Stelle possibleInvestments wieder her
       loadingModalVisible.value = false;
       compareModalVisible.value = true;
       plottedComparison.value = false;
@@ -287,11 +409,15 @@ const startComparisonWait = async (selectedAlgos: any[], runs: number, iteration
     console.log('Comparison results:', results.length, 'algorithms');
     console.log('First result sample:', results[0]);
     compareResults.value = results;
+    freezeCharts.value = false; // Gebe Charts wieder frei nach Abschluss
+    banditStore.possibleInvestments = savedPossibleInvestments.value; // Stelle possibleInvestments wieder her
     loadingModalVisible.value = false;
     compareModalVisible.value = false;
     plottedComparison.value = true;
   } catch (error) {
     console.error('Fehler beim Plotten:', error);
+    freezeCharts.value = false; // Gebe Charts auch bei Fehler frei
+    banditStore.possibleInvestments = savedPossibleInvestments.value; // Stelle possibleInvestments auch bei Fehler wieder her
     loadingModalVisible.value = false;
     alert('Fehler beim Erstellen des Plots. Bitte versuche es erneut.');
   }
@@ -300,6 +426,12 @@ const startComparisonWait = async (selectedAlgos: any[], runs: number, iteration
 // ----------------------- Navigation -----------------------
 const onNavBack = () => {
   router.push('/');
+};
+
+const backToPlotSettings = () => {
+  plottedComparison.value = false;
+  compareResults.value = [];
+  compareModalVisible.value = true;
 };
 
 // ----------------------- Lifecycle -----------------------
@@ -338,8 +470,15 @@ const probabilityLabel = computed(() =>
     : 'Erwartete Rendite'
 );
 
-const selectedArmSummaries = computed(() =>
-  banditStore.selectedStocks.map(selected => ({
+const frozenArmSummaries = ref<any[]>([]);
+
+const selectedArmSummaries = computed(() => {
+  // Wenn Charts eingefroren sind, nutze gefrorene Kopie
+  if (freezeCharts.value && frozenArmSummaries.value.length > 0) {
+    return frozenArmSummaries.value;
+  }
+  // Sonst: Aktuelle Werte aus dem Store
+  return banditStore.selectedStocks.map(selected => ({
     id: selected.stock.id,
     name: selected.stock.name,
     logoUrl: selected.stock.logo_url,
@@ -347,8 +486,8 @@ const selectedArmSummaries = computed(() =>
       banditStore.activeBandit === 'bernoulli'
         ? selected.bernoulli_param
         : selected.gaussian_param,
-  }))
-);
+  }));
+});
 
 function formatSelectedArmValue(value: number) {
   if (banditStore.activeBandit === 'bernoulli') {
@@ -372,7 +511,7 @@ function formatSelectedArmValue(value: number) {
     <!-- Content -->
     <div class="home-view-content">
       <div class="main-home-view" data-tour-target="compare-overview">
-        <div class="diagramm" ref="diagrammRef">
+        <div v-if="!freezeCharts" class="diagramm" ref="diagrammRef">
           <CompareChartReward :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"
             :dataGreedy="algorithmStore.greedyDataPoints" :dataThompson="algorithmStore.thompsonSamplingDataPoints"
             :dataUser="banditStore.displayData" :dataEGreedy="algorithmStore.eGreedyDataPoints"
@@ -381,8 +520,11 @@ function formatSelectedArmValue(value: number) {
             :showThompson="showThompson" :showUCB="showUCB" :showEGreedy="showEGreedy" :showOIV="showOIV"
             :showGradient="showGradient" />
         </div>
-        <div v-if="evaluationChartSeries.length > 0" class="diagramm diagramm--evaluation">
+        <div v-if="!freezeCharts && evaluationChartSeries.length > 0" class="diagramm diagramm--evaluation">
           <CompareChartAccuracy :series="evaluationChartSeries" />
+        </div>
+        <div v-if="freezeCharts" class="diagramm" style="display: flex; align-items: center; justify-content: center; min-height: 400px; color: #999;">
+          <p>Diagramme sind während der Berechnung pausiert...</p>
         </div>
       </div>
       <!-- Sidebar -->
@@ -683,7 +825,7 @@ function formatSelectedArmValue(value: number) {
   <Modal v-model="compareModalVisible" :close-on-backdrop="true" :close-on-esc="true">
     <template #header>
       <div style="display: flex; flex-direction: column;">
-        <h2 class="modal__title">Vergleich der eigenen Algorithmen</h2>
+        <h2 class="modal__title">Vergleich Algorithmen Parameter</h2>
         <div style="font-size:1rem;">
         </div>
         Wähle die gewünschten Durchläufe sowie die gewünschten Iterationen aus. Für jeden Algorithmus kann (wenn
@@ -697,9 +839,9 @@ function formatSelectedArmValue(value: number) {
       <!-- Durchläufe für alle Algorithmen -->
       <div class="algorithm-toggle-label" style="margin-bottom:1rem;">
         <label>
-          <input type="number" min="1" max="750" :step="1" v-model.number="globalRuns" placeholder="z.B. 150" />
+          <input type="number" min="50" max="1000" :step="1" v-model.number="globalRuns" placeholder="z.B. 500" />
           unabhängige Durchläufe mit jeweils
-          <input type="number" min="1" max="750" :step="1" v-model.number="globalIterations" placeholder="z.B. 150" />
+          <input type="number" min="50" max="1500" :step="1" v-model.number="globalIterations" placeholder="z.B. 700" />
           Iterationen. Arme:
           <input type="number" min="1" max="10" :step="1" v-model.number="globalArmCount" placeholder="z.B. 7" />
         </label>
@@ -728,14 +870,14 @@ function formatSelectedArmValue(value: number) {
                     {{ getParamLabel(toggle.id) }} {{ idx + 1 }}:
                     <input type="number" :min="getMin(toggle.id)" :max="getMax(toggle.id)" :step="getStep(toggle.id)"
                       :placeholder="idx === 0 ? '' : (getMin(toggle.id) + idx * getStep(toggle.id)).toFixed(3)"
-                      :value="param" @input="onParamInput($event, toggle.id, idx)" />
+                      :value="param" @input="onParamInput($event, toggle.id, idx)" @blur="onParamBlur($event, toggle.id, idx)" />
                   </label>
                 </template>
                 <button v-if="popupParams[toggle.id].length < 5" type="button" class="add-param-btn"
                   @click="addParamField(toggle.id)" title="Parameter hinzufügen">+</button>
 
                 <button v-if="popupParams[toggle.id].length > 1" type="button" class="remove-param-btn"
-                  @click="removeLastParamField(toggle.id)" title="Letztes Feld entfernen">&#10005;</button>
+                  @click="removeLastParamField(toggle.id)" title="Letztes Feld entfernen" style="margin-left: 0rem;">-</button>
               </div>
             </template>
           </div>
@@ -778,6 +920,9 @@ function formatSelectedArmValue(value: number) {
       <CompareResultChart v-if="compareResults.length > 0" :results="compareResults" />
     </div>
     <template #footer>
+      <button class="white-button" type="button" @click="backToPlotSettings" style="margin-right: 1rem;">
+        <i class="fas fa-arrow-left"></i> Zurück zu Einstellungen
+      </button>
       <button class="white-button" type="button" @click="plottedComparison = false">Schließen</button>
     </template>
   </Modal>
