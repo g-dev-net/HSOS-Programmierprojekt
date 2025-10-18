@@ -32,11 +32,6 @@ function initializePortfolio() {
 }
 
 // ----------------------- algorithm selection -----------------------
-const bandits = [
-  { name: 'Gaussian-Bandit', key: 'gaussian' },
-  { name: 'Bernoulli-Bandit', key: 'bernoulli' },
-];
-const activeBandit: Ref<string> = ref(bandits[0].key);
 const isTheoryOpen = ref(false);
 
 const gaussianTheory = [
@@ -55,7 +50,7 @@ const gaussianTheory = [
   `Wer sich tiefer mit der Theorie und den mathematischen Grundlagen besch&auml;ftigen m&ouml;chte, findet eine fundierte Einf&uuml;hrung in <a href="https://www.cambridge.org/highereducation/books/bandit-algorithms/06C4BB5A1B0B4223931C0463FBEC6F8E" target="_blank" rel="noopener">Lattimore &amp; Szepesv&aacute;ri (2020), <em>Bandit Algorithms</em></a> oder eine praxisorientierte Darstellung in <a href="https://web.stanford.edu/~bvr/pubs/TS_Tutorial.pdf" target="_blank" rel="noopener">Russo &amp; Van Roy (2016), <em>An Introduction to Thompson Sampling</em></a>.`,
 ];
 
-const theoryContent = computed<string[]>(() => (activeBandit.value === 'gaussian' ? gaussianTheory : bernoulliTheory));
+const theoryContent = computed<string[]>(() => (banditStore.activeBandit === 'gaussian' ? gaussianTheory : bernoulliTheory));
 function onBanditChange(banditKey: BanditKey) {
   if (banditStore.banditInProgress) {
     alert('Der Bandit läuft bereits. Bitte setzen Sie den Bandit zurück, um den Algorithmus zu wechseln.');
