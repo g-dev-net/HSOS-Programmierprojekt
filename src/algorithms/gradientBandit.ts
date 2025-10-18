@@ -2,9 +2,8 @@ import { bernoulli } from '../bandits/bernoulli.js';
 import { gaussian } from '../bandits/gaussian.js';
 import { useBanditStore } from '@/stores/bandit';
 import { useAlgorithmStore } from '@/stores/algorithms';
-
-
-const alpha = 0.1;
+import { addGradientResult } from '@/stores/compare_algos_store';
+import { setParamAlgo } from '@/stores/parameter_algos.ts';
 
 export function gradientBandit_bernoulli() {
     const bandit = 'bernoulli';
@@ -20,21 +19,9 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
     const banditStore = useBanditStore();
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
+    const alpha = setParamAlgo('gradient');
 
-    // uniform Policy init - intern Array!!
-    stock.forEach(stock => {
-        algorithmStore.investmentsGradient.push({
-            stock: stock,
-            greedyReturn: null,
-            eGreedyReturn: null,
-            thompsonReturn: null,
-            ucbReturn: null,
-            gradientReturn: 0,
-            optimisticInitialReturn: null,
-            userAlgorithmReturn: null
-        });
-    });
-
+    // Uniform policy initialization - internal only, not stored
     let H: number[] = new Array(stock.length).fill(0);
     let avgReward = 0;
 
@@ -71,22 +58,30 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
 
         for (let i = 0; i < H.length; i++) {
             if (i === chosen_arm_index) {
-                H[i] += alpha * (reward - avgReward) * (1 - probs[i]);
+                H[i] += alpha! * (reward - avgReward) * (1 - probs[i]);
             } else {
-                H[i] -= alpha * (reward - avgReward) * probs[i];
+                H[i] -= alpha! * (reward - avgReward) * probs[i];
             }
         }
 
-        algorithmStore.investmentsGradient.push({
-            stock: chosen_arm,
-            greedyReturn: null,
-            eGreedyReturn: null,
-            thompsonReturn: null,
-            ucbReturn: null,
-            gradientReturn: reward,
-            optimisticInitialReturn: null,
-            userAlgorithmReturn: null
-        });
+        if (algorithmStore.algorithmsCompare === false) {
+            algorithmStore.investmentsGradient.push({
+                stock: chosen_arm,
+                greedyReturn: null,
+                eGreedyReturn: null,
+                thompsonReturn: null,
+                ucbReturn: null,
+                gradientReturn: reward,
+                optimisticInitialReturn: null,
+                userAlgorithmReturn: null
+            });
+        } else {
+            let compareReward = reward;
+            if (algorithmStore.optimalActions === true) {
+                compareReward = chosen_arm.stock.id;
+            }
+            addGradientResult(alpha!, compareReward);
+        }
     }
     algorithmStore.algorithmsInProgress = false;
 }

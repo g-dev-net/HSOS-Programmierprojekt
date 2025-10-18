@@ -13,6 +13,7 @@
           aria-modal="true"
           ref="dialogRef"
           @click.stop
+          v-bind="$attrs"
         >
           <header class="modal__header">
             <slot name="header">
@@ -34,7 +35,7 @@
 
           <footer class="modal__footer">
             <slot name="footer">
-              <button class="white-button" type="button" @click="close()">Close</button>
+              <button class="white-button" type="button" @click="close()">Zurück</button>
             </slot>
           </footer>
         </div>
@@ -45,6 +46,12 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+
+defineOptions({
+  inheritAttrs: false,
+})
+
+let activeScrollLocks = 0
 
 const props = defineProps({
   /** v-model binding to control visibility */
@@ -85,11 +92,17 @@ function onKeydown (e: KeyboardEvent) {
 function lockScroll (lock: boolean) {
   const body = document.body
   if (lock) {
-    body.dataset.modalScrollLock = 'true'
-    body.style.overflow = 'hidden'
+    activeScrollLocks += 1
+    if (activeScrollLocks === 1) {
+      body.dataset.modalScrollLock = 'true'
+      body.style.overflow = 'hidden'
+    }
   } else {
-    delete body.dataset.modalScrollLock
-    body.style.overflow = ''
+    activeScrollLocks = Math.max(0, activeScrollLocks - 1)
+    if (activeScrollLocks === 0) {
+      delete body.dataset.modalScrollLock
+      body.style.overflow = ''
+    }
   }
 }
 
@@ -99,6 +112,7 @@ watch(() => props.modelValue, (show) => {
     open()
   } else {
     document.removeEventListener('keydown', onKeydown)
+    lockScroll(false)
   }
 })
 
@@ -165,6 +179,7 @@ onBeforeUnmount(() => {
   font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
+  color: white;
 }
 .modal__content {
   padding: 1.25rem;

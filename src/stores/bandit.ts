@@ -36,6 +36,10 @@ export const useBanditStore = defineStore('bandit', () => {
     parseFloat((startingCapital.value - investmentStep.value * investments.value.length).toFixed(2))
   )
 
+  const remainingInvestments = computed(() =>
+    Math.max(possibleInvestments.value - investments.value.length, 0)
+  )
+
   const bernoutliPortfolioSubtitle = computed(() =>
     investments.value.filter(inv => inv.bernoulliReturn === true).length
   )
@@ -114,6 +118,7 @@ export const useBanditStore = defineStore('bandit', () => {
     pullArm,
     displayData,
     isInvestmentPossible,
+    remainingInvestments,
     resetBandit,
     bernoutliPortfolioSubtitle,
     gaussianPortfolioSubtitle,
