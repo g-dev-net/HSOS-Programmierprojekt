@@ -196,13 +196,13 @@ function formatSelectedArmValue(value: number) {
   <div class="home-view">
     <!-- Headbar -->
     <div class="main-home-headbar">
-      <RouterLink class="white-button navBackButton" to="/">Zurück</RouterLink>
+      <RouterLink class="white-button navBackButton" to="/" data-tour-target="compare-back">Zurück</RouterLink>
       <div class="headbar-title">Vergleich mit Algorithmen</div>
     </div>
 
     <!-- Content -->
     <div class="home-view-content">
-        <div class="main-home-view">
+        <div class="main-home-view" data-tour-target="compare-overview">
           <div class="diagramm" ref="diagrammRef">
             <CompareChartReward
               :dataUCB="algorithmStore.upperConfidenceBoundDataPoints"

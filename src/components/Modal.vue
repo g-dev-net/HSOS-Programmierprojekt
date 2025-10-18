@@ -13,6 +13,7 @@
           aria-modal="true"
           ref="dialogRef"
           @click.stop
+          v-bind="$attrs"
         >
           <header class="modal__header">
             <slot name="header">
@@ -45,6 +46,10 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+
+defineOptions({
+  inheritAttrs: false,
+})
 
 let activeScrollLocks = 0
 
