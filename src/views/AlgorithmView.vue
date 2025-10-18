@@ -661,7 +661,7 @@ function formatSelectedArmValue(value: number) {
         </p>
 
         <p class="theory-source">
-          Quelle: Melo, Müller. Beyond Softmax: A New Perspective on Gradient Bandits. arXiv:2510.03979, 2025.
+          Quelle: Melo, Müller. Beyond Softmax: A New Perspective on Gradient Bandits. arXiv:2510.03979,  2025. 
         </p>
       </template>
 
@@ -678,18 +678,6 @@ function formatSelectedArmValue(value: number) {
           interpretieren wir Werte als erwartete Renditen.
         </p>
       </template>
-    </div>
-  </Modal>
-  <Modal v-model="theoryModalVisible" :close-on-backdrop="true" :close-on-esc="true">
-    <template #header>
-      <h2 class="modal__title">
-        Theorie - {{ activeTheory ? activeTheory.theoryTitle : '' }}
-      </h2>
-    </template>
-    <div class="theory-modal-content">
-      <p v-if="activeTheory">
-        Der theoretische Inhalt zu {{ activeTheory.label }} wird hier bald verfügbar sein.
-      </p>
     </div>
   </Modal>
   <Modal v-model="compareModalVisible" :close-on-backdrop="true" :close-on-esc="true">
