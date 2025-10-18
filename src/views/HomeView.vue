@@ -17,7 +17,18 @@ import 'shepherd.js/dist/css/shepherd.css';
 // ----------------------- general setup -----------------------
 const banditStore = useBanditStore();
 const algorithmStore = useAlgorithmStore();
-const stockList = stocks as Stock[];
+const logoImports = import.meta.glob('../assets/companyLogos/*.png', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+const stockList = (stocks as Stock[]).map((stock) => {
+  const assetPath = `../assets/${stock.logo_url}`;
+  const logo = logoImports[assetPath];
+  return {
+    ...stock,
+    logo_url: logo ?? stock.logo_url,
+  } as Stock;
+});
 type BanditKey = (typeof banditStore.bandits)[number]['key'];
 initializePortfolio();
 

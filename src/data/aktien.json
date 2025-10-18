@@ -3,90 +3,90 @@
     "id": 0,
     "name": "Apple",
     "price": 238.75,
-    "logo_url": "https://logo.clearbit.com/apple.com"
+    "logo_url": "companyLogos/apple.com.png"
   },
   {
     "id": 1,
     "name": "Microsoft",
     "price": 507.44,
-    "logo_url": "https://logo.clearbit.com/microsoft.com"
+    "logo_url": "companyLogos/microsoft.com.png"
   },
   {
     "id": 2,
     "name": "Alphabet",
     "price": 246.64,
-    "logo_url": "https://logo.clearbit.com/google.com"
+    "logo_url": "companyLogos/alphabet-inc.png"
   },
   {
     "id": 3,
     "name": "Amazon",
     "price": 230.65,
-    "logo_url": "https://logo.clearbit.com/amazon.com"
+    "logo_url": "companyLogos/amazon.com.png"
   },
   {
     "id": 4,
     "name": "Meta Platforms",
     "price": 767.8,
-    "logo_url": "https://logo.clearbit.com/meta.com"
+    "logo_url": "companyLogos/meta.com.png"
   },
   {
     "id": 5,
     "name": "Tesla",
     "price": 414.94,
-    "logo_url": "https://logo.clearbit.com/tesla.com"
+    "logo_url": "companyLogos/tesla.com.png"
   },
   {
     "id": 6,
     "name": "NVIDIA",
     "price": 169.5,
-    "logo_url": "https://logo.clearbit.com/nvidia.com"
+    "logo_url": "companyLogos/nvidia.com.png"
   },
   {
     "id": 7,
     "name": "JPMorgan Chase",
     "price": 309.93,
-    "logo_url": "https://logo.clearbit.com/jpmorganchase.com"
+    "logo_url": "companyLogos/jpmorganchase.com.png"
   },
   {
     "id": 8,
     "name": "Visa",
     "price": 344.19,
-    "logo_url": "https://logo.clearbit.com/visa.com"
+    "logo_url": "companyLogos/visa.com.png"
   },
   {
     "id": 9,
     "name": "Johnson & Johnson",
     "price": 177.22,
-    "logo_url": "https://logo.clearbit.com/jnj.com"
+    "logo_url": "companyLogos/jnj.com.png"
   },
   {
     "id": 10,
     "name": "Walmart",
     "price": 104.855,
-    "logo_url": "https://logo.clearbit.com/walmart.com"
+    "logo_url": "companyLogos/walmart.com.png"
   },
   {
     "id": 11,
     "name": "Procter & Gamble",
     "price": 161.24,
-    "logo_url": "https://logo.clearbit.com/pg.com"
+    "logo_url": "companyLogos/pg.com.png"
   },
   {
     "id": 12,
     "name": "The Coca-Cola Company",
     "price": 67.01,
-    "logo_url": "https://logo.clearbit.com/coca-cola.com"
+    "logo_url": "companyLogos/coca-cola.com.png"
   },
   {
     "id": 13,
     "name": "PepsiCo",
     "price": 141.49,
-    "logo_url": "https://logo.clearbit.com/pepsico.com"
+    "logo_url": "companyLogos/pepsico.com.png"
   },
   {
     "id": 14,
     "name": "Netflix",
     "price": 1220.99,
-    "logo_url": "https://logo.clearbit.com/netflix.com"
+    "logo_url": "companyLogos/netflix.com.png"
   }
 ]
