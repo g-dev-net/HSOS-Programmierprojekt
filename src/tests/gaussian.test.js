@@ -22,13 +22,13 @@ function mockSamplerReturn(value) {
 
 describe("gaussian", () => {
   // Grundlegende Funktionalitäten
-  it("ruft randomNormal mit mu und fester sigma 0.5 auf", () => {
+  it("ruft randomNormal mit mu und fester sigma 0.15 auf", () => {
     mockSamplerReturn(123);
     const mu = 42;
     const out = gaussian(mu);
 
     expect(randomNormal).toHaveBeenCalledTimes(1);
-    expect(randomNormal).toHaveBeenCalledWith(mu, 0.5);
+    expect(randomNormal).toHaveBeenCalledWith(mu, 0.15);
     expect(out).toBe(123);
   });
 
@@ -52,8 +52,8 @@ describe("gaussian", () => {
     const b = gaussian(7);
 
     expect(randomNormal).toHaveBeenCalledTimes(2);
-    expect(randomNormal).toHaveBeenNthCalledWith(1, 5, 0.5);
-    expect(randomNormal).toHaveBeenNthCalledWith(2, 7, 0.5);
+    expect(randomNormal).toHaveBeenNthCalledWith(1, 5, 0.15);
+    expect(randomNormal).toHaveBeenNthCalledWith(2, 7, 0.15);
     expect(a).toBe(1.23);
     expect(b).toBe(4.56);
     expect(sampler1).toHaveBeenCalledTimes(1);
@@ -65,7 +65,7 @@ describe("gaussian", () => {
     mockSamplerReturn(NaN);
     const out = gaussian(Number.NaN);
 
-    expect(randomNormal).toHaveBeenCalledWith(Number.NaN, 0.5);
+    expect(randomNormal).toHaveBeenCalledWith(Number.NaN, 0.15);
     expect(Number.isNaN(out)).toBe(true);
   });
 
@@ -73,7 +73,7 @@ describe("gaussian", () => {
     mockSamplerReturn(99);
     const out = gaussian(Infinity);
 
-    expect(randomNormal).toHaveBeenCalledWith(Infinity, 0.5);
+    expect(randomNormal).toHaveBeenCalledWith(Infinity, 0.15);
     expect(out).toBe(99);
   });
 
@@ -81,7 +81,7 @@ describe("gaussian", () => {
     mockSamplerReturn(-99);
     const out = gaussian(-Infinity);
 
-    expect(randomNormal).toHaveBeenCalledWith(-Infinity, 0.5);
+    expect(randomNormal).toHaveBeenCalledWith(-Infinity, 0.15);
     expect(out).toBe(-99);
   });
 
@@ -90,7 +90,7 @@ describe("gaussian", () => {
     const mu = 1e12;
     const out = gaussian(mu);
 
-    expect(randomNormal).toHaveBeenCalledWith(mu, 0.5);
+    expect(randomNormal).toHaveBeenCalledWith(mu, 0.15);
     expect(out).toBeCloseTo(1e6 + 0.25, 10);
   });
 });

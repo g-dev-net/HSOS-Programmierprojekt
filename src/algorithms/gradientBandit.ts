@@ -21,11 +21,12 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
 
-    // uniform Policy init
+    // uniform Policy init - intern Array!!
     stock.forEach(stock => {
         algorithmStore.investmentsGradient.push({
             stock: stock,
             greedyReturn: null,
+            eGreedyReturn: null,
             thompsonReturn: null,
             ucbReturn: null,
             gradientReturn: 0,
@@ -79,6 +80,7 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
         algorithmStore.investmentsGradient.push({
             stock: chosen_arm,
             greedyReturn: null,
+            eGreedyReturn: null,
             thompsonReturn: null,
             ucbReturn: null,
             gradientReturn: reward,
