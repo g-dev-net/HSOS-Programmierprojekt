@@ -10,6 +10,7 @@ import MainTable from '@/components/MainTable.vue';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import type { Header, Row } from '@/types/table';
+// @ts-ignore
 import Shepherd from 'shepherd.js';
 import 'shepherd.js/dist/css/shepherd.css';
 
@@ -134,6 +135,7 @@ function createInteractiveTour(): ShepherdTour | null {
         behavior: 'smooth',
         block: 'center',
       },
+      //@ts-ignore
       popperOptions: {
         modifiers: [
           {
