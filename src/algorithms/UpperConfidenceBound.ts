@@ -51,39 +51,42 @@ function ucb(bandit: BanditKind) {
  // const ucbValue = (mean: number, n: number, t: number) =>
  //   mean + Math.sqrt((UCB_C * Math.log(t)) / n);
 
- // const totalUcbPulls = () => isCompareMode ? tempInvestments.length : algorithmStore.investmentsUCB.length;
+ const totalUcbPulls = () => isCompareMode ? tempInvestments.length : algorithmStore.investmentsUCB.length;
 
-//  const pushInvestment = (chosen_arm: any, reward: number) => {
-  //  if (isCompareMode) {
-    //  tempInvestments.push({
-      //  stock: chosen_arm,
-//        greedyReturn: null,
-  //      eGreedyReturn: null,
-    //    thompsonReturn: null,
-      //  ucbReturn: reward,
-   //     gradientReturn: null,
-   //     optimisticInitialReturn: null,
-   //     userAlgorithmReturn: null
-   //   });
-   // } else {
-   //   algorithmStore.investmentsUCB.push({
-//        stock: chosen_arm,
-  //      greedyReturn: null,
-  //      eGreedyReturn: null,
- //       thompsonReturn: null,
-  //      ucbReturn: reward,
-  //      gradientReturn: null,
-  //      optimisticInitialReturn: null,
-  //      userAlgorithmReturn: null
-//      });
+ const pushInvestment = (chosen_arm: any, reward: number) => {
+   if (isCompareMode) {
+     tempInvestments.push({
+       stock: chosen_arm,
+       greedyReturn: null,
+       eGreedyReturn: null,
+       thompsonReturn: null,
+       ucbReturn: reward,
+       gradientReturn: null,
+       optimisticInitialReturn: null,
+       userAlgorithmReturn: null
+     });
+   } else {
+     algorithmStore.investmentsUCB.push({
+       stock: chosen_arm,
+       greedyReturn: null,
+       eGreedyReturn: null,
+       thompsonReturn: null,
+       ucbReturn: reward,
+       gradientReturn: null,
+       optimisticInitialReturn: null,
+       userAlgorithmReturn: null
+     });
+    }
+  };
+  
   // UCB je nach Banditentyp
   const ucbValue = (mean: number, n: number, t: number) => {
     if (bandit === "gaussian") {
       // bekannte Varianz: σ = SIGMA
-      return mean + Math.sqrt((2 * SIGMA * SIGMA * Math.log(t)) / n);
+      return mean + Math.sqrt((UCB_C * SIGMA * SIGMA * Math.log(t)) / n);
     } else {
       // Bernoulli in [0, 1]
-      return mean + Math.sqrt((2 * Math.log(t)) / n);
+      return mean + Math.sqrt((UCB_C * Math.log(t)) / n);
     }
   };
 
