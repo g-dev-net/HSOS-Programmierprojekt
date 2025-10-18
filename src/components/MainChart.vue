@@ -1,25 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DisplayDataPoint } from '@/types/investment';
+import type { DisplayDataPoint } from '@/types/investment'
 
-
-const props = defineProps({
-  data: {
-    type: Array<DisplayDataPoint>,
-    required: true
-  },
-  width: {
-    type: Number,
-    default: 900
-  },
-  height: {
-    type: Number,
-    default: 500
-  },
-  activeBandit: {
-    type: String,
-    required: true
-  }
+const props = withDefaults(defineProps<{
+  data: DisplayDataPoint[]
+  activeBandit: string
+  height?: number
+}>(), {
+  height: 360,
 })
 
 const chartData = computed(() => 
@@ -72,14 +60,14 @@ const options = computed(() => ({
   }]
 }))
 
-const styleOptions = {
-  width: "100%",
-  height: "360px"
-}
+const styleOptions = computed(() => ({
+  width: '100%',
+  height: `${props.height}px`,
+}))
 </script>
 
 <template>
-  <CanvasJSChart :options="options" :style="styleOptions"/>
+  <CanvasJSChart :options="options" :style="styleOptions" />
 </template>
 
 <style scoped>

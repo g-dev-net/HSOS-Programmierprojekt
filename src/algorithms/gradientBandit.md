@@ -5,7 +5,7 @@
 The `gradientBandit.ts` module implements **Gradient Bandit** (policy gradient method) for Multi-Armed Bandits using **softmax action selection** and preference learning. Supports Bernoulli and Gaussian bandits with Pinia state management.
 
 **Stores:** `useBanditStore` (stocks/parameters), `useAlgorithmStore` (results/progress)  
-**Tests:** `/src/tests/gradientBandit.test.js` (34 tests validating softmax, preference updates, mathematical correctness)
+**Tests:** `/src/tests/gradientBandit.test.js` (14 tests validating softmax, preference updates, mathematical correctness)
 
 ## The Gradient Bandit Approach
 
@@ -26,9 +26,9 @@ The `gradientBandit.ts` module implements **Gradient Bandit** (policy gradient m
 ### Algorithm Flow
 
 ```typescript
-// Initialize
-let H = [0, 0, ..., 0];  // Preferences
-let avgReward = 0;        // Baseline
+// Initialize preferences internally (no store initialization)
+let H = [0, 0, ..., 0];  // Preferences (local)
+let avgReward = 0;        // Baseline (local)
 
 for (t = 0; t < possibleInvestments; t++) {
     // 1. Softmax: π(a) = exp(H(a)) / Σexp(H(k))
@@ -50,6 +50,9 @@ for (t = 0; t < possibleInvestments; t++) {
         else
             H[a] -= α * (reward - avgReward) * probs[a];
     }
+    
+    // 6. Store actual investment (not initialization)
+    store.push({ stock: chosen_arm, gradientReturn: reward, ... });
 }
 ```
 
@@ -90,8 +93,9 @@ H[other] -= α * (R - R̄) * π(other);
 
 ## Store Integration
 
-**Initialization:** Each stock gets `gradientReturn: 0` (uniform policy)  
-**Updates:** `algorithmStore.investmentsGradient` stores rewards with other fields `null`
+**No Initialization:** Preferences H and avgReward are kept **locally** (not stored)  
+**Updates:** Only actual investments stored in `algorithmStore.investmentsGradient`  
+**Result:** Store contains exactly `possibleInvestments` entries (no dummy initialization)
 
 ## Usage Example
 

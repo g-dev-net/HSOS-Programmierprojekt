@@ -3,6 +3,7 @@ import { gaussian } from '../bandits/gaussian.js';
 import { useBanditStore } from '@/stores/bandit';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import jStat from "jstat";
+import { addThompsonResult } from '@/stores/compare_algos_store';
 
 export function thompsonSampling_bernoulli() {
     const bandit = 'bernoulli';
@@ -19,11 +20,17 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
     
+    // Im Compare-Modus: Nutze lokales temporäres Array statt Pinia Store
+    const isCompareMode = algorithmStore.algorithmsCompare;
+    const tempInvestments: any[] = [];
+    
     algorithmStore.algorithmsInProgress = true;
     for (let t = 0; t < banditStore.possibleInvestments; t++) {
         let sampledValues: number[] = [];
         for (let i = 0; i < stock.length; i++) {
-            const arm_investments = algorithmStore.investmentsThompson.filter(inv => inv.stock === stock[i]);
+            const arm_investments = isCompareMode 
+                ? tempInvestments.filter(inv => inv.stock === stock[i])
+                : algorithmStore.investmentsThompson.filter(inv => inv.stock === stock[i]);
             let sampledValue = 0;
             switch (bandit) {
                 case 'bernoulli':
@@ -65,16 +72,37 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
                 reward = gaussian(chosen_arm.gaussian_param);
                 break;
         }
-        algorithmStore.investmentsThompson.push({
-            stock: chosen_arm,
-            greedyReturn: null,
-            eGreedyReturn: null,
-            thompsonReturn: reward,
-            ucbReturn: null,
-            gradientReturn: null,
-            optimisticInitialReturn: null,
-            userAlgorithmReturn: null
-        });
+
+        if (algorithmStore.algorithmsCompare === false) {
+            algorithmStore.investmentsThompson.push({
+                stock: chosen_arm,
+                greedyReturn: null,
+                eGreedyReturn: null,
+                thompsonReturn: reward,
+                ucbReturn: null,
+                gradientReturn: null,
+                optimisticInitialReturn: null,
+                userAlgorithmReturn: null
+            });
+        } else {
+            // Speichere in tempInvestments für nächste Iteration
+            tempInvestments.push({
+                stock: chosen_arm,
+                greedyReturn: null,
+                eGreedyReturn: null,
+                thompsonReturn: reward,
+                ucbReturn: null,
+                gradientReturn: null,
+                optimisticInitialReturn: null,
+                userAlgorithmReturn: null
+            });
+            
+            let compareReward = reward;
+            if (algorithmStore.optimalActions === true) {
+                compareReward = chosen_arm.stock.id;
+            }
+            addThompsonResult('default', compareReward);
+        }
     }
     algorithmStore.algorithmsInProgress = false;
 }
