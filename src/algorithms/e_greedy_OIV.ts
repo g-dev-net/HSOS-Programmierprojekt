@@ -3,19 +3,16 @@ import { bernoulli } from '../bandits/bernoulli.js';
 import { gaussian } from '../bandits/gaussian.js';
 import { useBanditStore } from '@/stores/bandit';
 import { useAlgorithmStore } from '@/stores/algorithms';
-
-const val_epsilon = 0.1;
-const OIV_value = 5;
+import { addGreedyResult, addEGreedyResult, addOIVResult } from '@/stores/compare_algos_store';
+import { setParamAlgo } from '@/stores/parameter_algos.ts';
 
 export function greedy_bernoulli() {
     const bandit = 'bernoulli';
-    const epsilon = false;
     xGreedy(bandit, 'greedy');
 }
 
 export function eGreedy_bernoulli() {
     const bandit = 'bernoulli';
-    const epsilon = true;
     xGreedy(bandit, 'eGreedy');
 }
 
@@ -26,13 +23,11 @@ export function OIV_bernoulli() {
 
 export function greedy_gaussian() {
     const bandit = 'gaussian';
-    const epsilon = false;
     xGreedy(bandit, 'greedy');
 }
 
 export function eGreedy_gaussian() {
     const bandit = 'gaussian';
-    const epsilon = true;
     xGreedy(bandit, 'eGreedy');
 }
 
@@ -45,12 +40,27 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreed
     const banditStore = useBanditStore();
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
+    let param = 0;
+    if (algorithm !== 'greedy') {
+        param = setParamAlgo(algorithm);
+    }
     
     // Inits for algorithms
     let best_arm_index = 0;
     let avg_result = 0;
-    let stock_investments = [];
-    let sum = 0;
+
+    // Im Compare-Modus: Nutze lokales temporäres Array statt Pinia Store
+    const isCompareMode = algorithmStore.algorithmsCompare;
+    const tempInvestments: any[] = [];
+    
+    // PERFORMANCE-OPTIMIERUNG: Cache für Summen und Counts pro Stock
+    // Verhindert teure filter().reduce() Operationen in jeder Iteration
+    const stockCache = new Map<any, { sum: number; count: number }>();
+    
+    // Initialisiere Cache für alle Stocks
+    for (let i = 0; i < stock.length; i++) {
+        stockCache.set(stock[i], { sum: 0, count: 0 });
+    }
 
     algorithmStore.algorithmsInProgress = true;
 
@@ -58,40 +68,23 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreed
     // OR try greedy but with probability e a random arm (e-greedy)
     // OR try greedy with optimistic initial value (OIV)
     for (let t = 0; t < banditStore.possibleInvestments; t++) {
-        if (algorithm === 'eGreedy' && Math.random() < val_epsilon) {
+        if (algorithm === 'eGreedy' && Math.random() < param) {
             best_arm_index = Math.floor(Math.random() * stock.length);
         }
         else {
-            // set comparison-value to first so it can be compared
-            // ! Necessary bc the set value has changed in the loop
-            let best_arm_value = 0;
+            // Calculate average for each arm and select the best
+            let best_arm_value = -Infinity;
             best_arm_index = 0;
             for (let i = 0; i < stock.length; i++) {
-                switch (algorithm) {
-                    // Calc average reward for each stock based on algorithm
-                    case 'greedy':
-                        stock_investments = algorithmStore.investmentsGreedy.filter(inv => inv.stock === stock[i]);
-                        if (stock_investments.length > 0) {
-                            sum = stock_investments.reduce((acc, inv) => acc + (inv.greedyReturn || 0), 0);
-                            avg_result = sum / stock_investments.length;
-                        } else {
-                            avg_result = 0;
-                        }
-                        break;
-                    case 'eGreedy':
-                        stock_investments = algorithmStore.investmentsEGreedy.filter(inv => inv.stock === stock[i]);
-                        if (stock_investments.length > 0) {
-                            sum = stock_investments.reduce((acc, inv) => acc + (inv.eGreedyReturn || 0), 0);
-                            avg_result = sum / stock_investments.length;
-                        } else {
-                            avg_result = 0;
-                        }
-                        break;
-                    case 'OIV':
-                        stock_investments = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock === stock[i]);
-                        sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0) + OIV_value;
-                        avg_result = sum / (stock_investments.length + 1);
-                        break;
+                // Nutze Cache für schnellen Zugriff
+                const cached = stockCache.get(stock[i])!;
+                
+                if (algorithm === 'OIV' && cached.count === 0) {
+                    avg_result = param; // Optimistic initial value
+                } else if (cached.count > 0) {
+                    avg_result = cached.sum / cached.count;
+                } else {
+                    avg_result = 0;
                 }
 
                 // Compare average reward of current stock with best found so far
@@ -114,46 +107,90 @@ function xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreed
                 break;
         }
 
-        // Store the investment result in algorithm store
-        switch (algorithm) {
-            case 'greedy':
-                algorithmStore.investmentsGreedy.push({
-                    stock: chosen_arm,
-                    greedyReturn: reward,
-                    eGreedyReturn: null,
-                    thompsonReturn: null,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
-                break;
-            case 'eGreedy':
-                algorithmStore.investmentsEGreedy.push({
-                    stock: chosen_arm,
-                    greedyReturn: null,
-                    eGreedyReturn: reward,
-                    thompsonReturn: null,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: null,
-                    userAlgorithmReturn: null
-                });
-                break;
-            case 'OIV':
-                algorithmStore.investmentsOptimisticInitial.push({
-                    stock: chosen_arm,
-                    greedyReturn: null,
-                    eGreedyReturn: null,
-                    thompsonReturn: null,
-                    ucbReturn: null,
-                    gradientReturn: null,
-                    optimisticInitialReturn: reward,
-                    userAlgorithmReturn: null
-                });
-                break;
-            default:
-                throw new Error("Unknown algorithm type");
+        // Store the investment result - NUR in Compare-Arrays wenn algorithmsCompare aktiv
+        if (algorithmStore.algorithmsCompare === true) {
+            // Vergleichsmodus: Schreibe in temporäres Array UND in Compare-Arrays
+            let compareReward = reward;
+            if (algorithmStore.optimalActions === true) {
+                compareReward = chosen_arm.stock.id;
+            }
+            
+            // UPDATE CACHE: Inkrementiere Summe und Count für diesen Stock
+            const cached = stockCache.get(chosen_arm)!;
+            cached.sum += reward;
+            cached.count++;
+            
+            // Speichere in tempInvestments für Backup (falls nötig)
+            tempInvestments.push({
+                stock: chosen_arm,
+                greedyReturn: algorithm === 'greedy' ? reward : null,
+                eGreedyReturn: algorithm === 'eGreedy' ? reward : null,
+                thompsonReturn: null,
+                ucbReturn: null,
+                gradientReturn: null,
+                optimisticInitialReturn: algorithm === 'OIV' ? reward : null,
+                userAlgorithmReturn: null
+            });
+            
+            // Schreibe in Compare-Arrays
+            switch (algorithm) {
+                case 'greedy':
+                    addGreedyResult('default', compareReward);
+                    break;
+                case 'eGreedy':
+                    addEGreedyResult(param, compareReward);
+                    break;
+                case 'OIV':
+                    addOIVResult(param, compareReward);
+                    break;
+            }
+        } else {
+            // Normaler Modus: Schreibe NUR in Pinia Store
+            // UPDATE CACHE auch im normalen Modus!
+            const cached = stockCache.get(chosen_arm)!;
+            cached.sum += reward;
+            cached.count++;
+            
+            switch (algorithm) {
+                case 'greedy':
+                    algorithmStore.investmentsGreedy.push({
+                        stock: chosen_arm,
+                        greedyReturn: reward,
+                        eGreedyReturn: null,
+                        thompsonReturn: null,
+                        ucbReturn: null,
+                        gradientReturn: null,
+                        optimisticInitialReturn: null,
+                        userAlgorithmReturn: null
+                    });
+                    break;
+                case 'eGreedy':
+                    algorithmStore.investmentsEGreedy.push({
+                        stock: chosen_arm,
+                        greedyReturn: null,
+                        eGreedyReturn: reward,
+                        thompsonReturn: null,
+                        ucbReturn: null,
+                        gradientReturn: null,
+                        optimisticInitialReturn: null,
+                        userAlgorithmReturn: null
+                    });
+                    break;
+                case 'OIV':
+                    algorithmStore.investmentsOptimisticInitial.push({
+                        stock: chosen_arm,
+                        greedyReturn: null,
+                        eGreedyReturn: null,
+                        thompsonReturn: null,
+                        ucbReturn: null,
+                        gradientReturn: null,
+                        optimisticInitialReturn: reward,
+                        userAlgorithmReturn: null
+                    });
+                    break;
+                default:
+                    throw new Error("Unknown algorithm type");
+            }
         }
     }
     algorithmStore.algorithmsInProgress = false;

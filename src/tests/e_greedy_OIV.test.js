@@ -141,6 +141,29 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
   });
 
   describe('Greedy Algorithm Theory', () => {
+    it('should handle negative Gaussian rewards correctly', () => {
+      banditStore.selectedStocks = [
+        { stock: { id: 1, name: 'Bad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
+        { stock: { id: 2, name: 'LessBad' }, bernoulli_param: 0.2, gaussian_param: 0.03 }
+      ];
+      banditStore.possibleInvestments = 10;
+      
+      // Mit Cold-Start (beide avg=0) wird zuerst index 0 (Bad) gewählt
+      // Wenn Bad schlechter ist als LessBad, sollte nach erstem Versuch gewechselt werden
+      gaussian
+        .mockReturnValueOnce(-0.5)   // Bad tried first: avg = -0.5
+        .mockReturnValue(-0.2);      // LessBad returns -0.2 (better!)
+      
+      greedy_gaussian();
+      
+      const badInvestments = algorithmStore.investmentsGreedy.filter(inv => inv.stock.stock.name === 'Bad');
+      const lessBadInvestments = algorithmStore.investmentsGreedy.filter(inv => inv.stock.stock.name === 'LessBad');
+      
+      // Nach Cold-Start sollte LessBad dominieren (besserer Durchschnitt)
+      expect(badInvestments.length).toBe(1);
+      expect(lessBadInvestments.length).toBe(9);
+    });
+
     it('should exploit best arm consistently after cold-start', () => {
       banditStore.selectedStocks = [
         { stock: { id: 1, name: 'Bad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
@@ -245,8 +268,8 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
       
       // First stock gets low reward (0), second stock gets high reward (1)
       bernoulli
-        .mockReturnValueOnce(false) // Apple: avg = (5 + 0) / 2 = 2.5
-        .mockReturnValueOnce(true); // Google: avg = (5 + 1) / 2 = 3.0
+        .mockReturnValueOnce(false) // Apple: first trial avg = 5, after trial avg = 0
+        .mockReturnValueOnce(true); // Google: first trial avg = 5, after trial avg = 1
       
       OIV_bernoulli();
       
@@ -257,21 +280,21 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
       expect(stocksTried).toContain('Google');
     });
 
-    it('should calculate average with OIV: (sum + 5) / (count + 1)', () => {
+    it('should calculate average with OIV: first=optimistic, then sum/count', () => {
       banditStore.selectedStocks = [
         { stock: { id: 1, name: 'Apple' }, bernoulli_param: 0.6, gaussian_param: 0.05 }
       ];
       banditStore.possibleInvestments = 3;
       
       gaussian
-        .mockReturnValueOnce(0.1)  // avg = (5 + 0.1) / 2 = 2.55
-        .mockReturnValueOnce(0.2)  // avg = (5 + 0.1 + 0.2) / 3 = 1.77
-        .mockReturnValueOnce(0.3); // avg = (5 + 0.1 + 0.2 + 0.3) / 4 = 1.4
+        .mockReturnValueOnce(0.1)  // trial 1: avg = 5 (optimistic), after: avg = 0.1
+        .mockReturnValueOnce(0.2)  // trial 2: avg = (0.1 + 0.2) / 2 = 0.15
+        .mockReturnValueOnce(0.3); // trial 3: avg = (0.1 + 0.2 + 0.3) / 3 = 0.2
       
       OIV_gaussian();
       
       expect(algorithmStore.investmentsOptimisticInitial).toHaveLength(3);
-      // OIV value should diminish over time
+      // OIV encourages initial exploration, then uses true average
     });
 
     it('should explore all arms initially due to optimistic values', () => {
@@ -311,6 +334,38 @@ describe('Greedy, Epsilon-Greedy, and OIV Algorithms', () => {
       // After exploration, "Good" should dominate
       const goodInvestments = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock.stock.name === 'Good');
       expect(goodInvestments.length).toBeGreaterThan(4); // Should be selected more often
+    });
+
+    it('should work correctly with negative Gaussian rewards', () => {
+      banditStore.selectedStocks = [
+        { stock: { id: 1, name: 'VeryBad' }, bernoulli_param: 0.1, gaussian_param: 0.05 },
+        { stock: { id: 2, name: 'Bad' }, bernoulli_param: 0.2, gaussian_param: 0.03 },
+        { stock: { id: 3, name: 'LessBad' }, bernoulli_param: 0.3, gaussian_param: 0.04 }
+      ];
+      banditStore.possibleInvestments = 8;
+      
+      // All return negative, but LessBad is best
+      gaussian
+        .mockReturnValueOnce(-0.8)  // VeryBad: initial=5, after=-0.8
+        .mockReturnValueOnce(-0.5)  // Bad: initial=5, after=-0.5
+        .mockReturnValueOnce(-0.2)  // LessBad: initial=5, after=-0.2 (best!)
+        .mockReturnValue(-0.2);     // Continue with similar values
+      
+      OIV_gaussian();
+      
+      // All should be explored initially, then LessBad should dominate
+      const veryBadInv = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock.stock.name === 'VeryBad');
+      const badInv = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock.stock.name === 'Bad');
+      const lessBadInv = algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock.stock.name === 'LessBad');
+      
+      // All explored at least once
+      expect(veryBadInv.length).toBeGreaterThan(0);
+      expect(badInv.length).toBeGreaterThan(0);
+      expect(lessBadInv.length).toBeGreaterThan(0);
+      
+      // LessBad should have most investments (least negative = best)
+      expect(lessBadInv.length).toBeGreaterThanOrEqual(badInv.length);
+      expect(lessBadInv.length).toBeGreaterThanOrEqual(veryBadInv.length);
     });
   });
 

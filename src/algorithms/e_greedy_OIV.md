@@ -1,151 +1,329 @@
-# Greedy, Epsilon-Greedy & OIV Algorithm Technical Documentation
+# Greedy, ε-Greedy, and Optimistic Initial Values Technical Documentation
 
 ## Overview
 
-The `e_greedy_OIV.ts` module implements three exploration strategies for Multi-Armed Bandit problems: **Greedy** (pure exploitation), **Epsilon-Greedy** (ε-exploration), and **Optimistic Initial Values** (OIV). All strategies support both Bernoulli and Gaussian bandits using Pinia stores for state management.
+This module implements **Greedy**, **ε-Greedy**, and **Optimistic Initial Values (OIV)** for multi-armed bandits with **Bernoulli** and **Gaussian** reward models.
+The implementation follows a **Vue architecture** with **Pinia stores**. Results are captured per algorithm in dedicated arrays or, in Compare mode, via aggregators.
+Hyperparameters are configured through `setParamAlgo`. For `eGreedy` this is `ε`. For `OIV` this is the optimistic start value.
 
 ## Architecture
 
-**Stores:**
-- **`useBanditStore`**: Selected stocks and investment parameters
-- **`useAlgorithmStore`**: Algorithm results and progress tracking
+Several stores and helpers are used:
 
-**Tests:** Located in `/src/tests/e_greedy_OIV.test.js` (20 tests validating core functionality)
+* `useBanditStore` manages the fixed set of selected stocks and the total pull budget.
+* `useAlgorithmStore` tracks progress, controls Compare mode, and stores results in
 
-## The Three Algorithms
+  * `investmentsGreedy`
+  * `investmentsEGreedy`
+  * `investmentsOptimisticInitial`
+* `setParamAlgo(algorithm)` returns the hyperparameter
 
-### 1. Greedy (Pure Exploitation)
+  * `eGreedy` returns `ε`
+  * `OIV` returns the optimistic start value
+* `addGreedyResult`, `addEGreedyResult`, `addOIVResult` write comparison values in Compare mode.
 
-**Strategy:** Always select the arm with highest average reward  
-**Cold-Start:** All arms initialized with `avg = 0`  
+## The Greedy Family Approach
 
-**Behavior:**
-- First arm with positive reward gets selected repeatedly
-- No exploration after initial selection
-- Fast convergence but may miss better arms
+All three variants choose the arm with the highest observed average in each step. Differences:
 
-**Advantages:** Simple, immediate exploitation  
-**Disadvantages:** Premature convergence, no exploration
+* **Greedy** deterministically selects the arm with the highest empirical mean.
+* **ε-Greedy** selects a random arm with probability `ε`, otherwise greedy.
+* **Optimistic Initial Values** initializes unplayed arms with an optimistic start value `v0`. This encourages early exploration.
 
-### 2. Epsilon-Greedy (ε = 0.1)
+Definitions:
 
-**Strategy:** Exploration with probability ε, exploitation otherwise  
+* `r_{i,1}, …, r_{i,n_i}` are the past rewards of arm `i`.
+* Empirical mean
 
-**Behavior:**
-- 10% random arm selection (exploration)
-- 90% best arm selection (exploitation)
-- Balances exploration and exploitation
+```math
+\bar{r}_i =
+\begin{cases}
+\frac{1}{n_i} \sum_{k=1}^{n_i} r_{i,k}, & n_i > 0 \\
+0, & n_i = 0 \text{ and Greedy or ε-Greedy} \\
+v_0, & n_i = 0 \text{ and OIV}
+\end{cases}
+```
 
-**Advantages:** Avoids getting stuck, consistent exploration  
-**Disadvantages:** Fixed exploration rate may be inefficient
+### Key Advantages
 
-### 3. Optimistic Initial Values (OIV)
+* Simple and fast baselines
+* ε-Greedy enables controlled exploration via `ε`
+* OIV promotes initial exploration without an additional randomness component
 
-**Strategy:** Initialize all arms with optimistic value (5), encouraging early exploration  
-**Formula:** `avg = (sum_of_rewards + 5) / (count + 1)`
+## Functions
 
-**Behavior:**
-- All arms start with high expected value (5)
-- Reality check lowers estimates after trials
-- Automatic exploration in early phase
-- Exploitation after exploration phase
+### `greedy_bernoulli(): void`
 
-**Advantages:** No extra parameters, front-loaded exploration  
-**Disadvantages:** Only explores initially, parameter-sensitive
+Wrapper that runs Greedy for Bernoulli bandits.
 
-## Core Implementation
+#### Prerequisites: Greedy Bernoulli
 
-### xGreedy Function
+* Expects `banditStore.selectedStocks` with field `bernoulli_param: number`
+* Writes results to `investmentsGreedy` or temporarily in Compare mode
 
-**Signature:** `xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreedy' | 'OIV')`
+### `greedy_gaussian(): void`
 
-**Algorithm Flow:**
-1. Set `algorithmsInProgress = true`
-2. For each investment round (`t = 0` to `possibleInvestments`):
-   - **Epsilon-Greedy**: Random selection if `Math.random() < 0.1`
-   - **Greedy/OIV**: Find best arm by comparing average rewards
-   - Execute bandit function, store reward
-3. Set `algorithmsInProgress = false`
+Wrapper that runs Greedy for Gaussian bandits.
 
-### Average Reward Calculation
+#### Prerequisites: Greedy Gaussian
 
-```typescript
-switch (algorithm) {
-    case 'greedy':
-        if (stock_investments.length > 0) {
-            sum = stock_investments.reduce((acc, inv) => acc + (inv.greedyReturn || 0), 0);
-            avg_result = sum / stock_investments.length;  // Standard average
-        } else {
-            avg_result = 0;  // Cold-start value
-        }
-        break;
-    
-    case 'OIV':
-        sum = stock_investments.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0) + OIV_value;
-        avg_result = sum / (stock_investments.length + 1);  // Include virtual initial value
-        break;
+* Expects `banditStore.selectedStocks` with field `gaussian_param: number | object`
+* Writes results to `investmentsGreedy` or temporarily in Compare mode
+
+### `eGreedy_bernoulli(): void`
+
+Wrapper that runs ε-Greedy for Bernoulli bandits.
+
+#### Prerequisites: eGreedy Bernoulli
+
+* Expects `banditStore.selectedStocks` with field `bernoulli_param: number`
+* Uses `ε = setParamAlgo('eGreedy')`
+* Writes results to `investmentsEGreedy` or temporarily in Compare mode
+
+### `eGreedy_gaussian(): void`
+
+Wrapper that runs ε-Greedy for Gaussian bandits.
+
+#### Prerequisites: eGreedy Gaussian
+
+* Expects `banditStore.selectedStocks` with field `gaussian_param: number | object`
+* Uses `ε = setParamAlgo('eGreedy')`
+* Writes results to `investmentsEGreedy` or temporarily in Compare mode
+
+### `OIV_bernoulli(): void`
+
+Wrapper that runs OIV for Bernoulli bandits.
+
+#### Prerequisites: OIV Bernoulli
+
+* Expects `banditStore.selectedStocks` with field `bernoulli_param: number`
+* Uses `v0 = setParamAlgo('OIV')`
+* Writes results to `investmentsOptimisticInitial` or temporarily in Compare mode
+
+### `OIV_gaussian(): void`
+
+Wrapper that runs OIV for Gaussian bandits.
+
+#### Prerequisites: OIV Gaussian
+
+* Expects `banditStore.selectedStocks` with field `gaussian_param: number | object`
+* Uses `v0 = setParamAlgo('OIV')`
+* Writes results to `investmentsOptimisticInitial` or temporarily in Compare mode
+
+### `xGreedy(bandit: 'bernoulli' | 'gaussian', algorithm: 'greedy' | 'eGreedy' | 'OIV'): void`
+
+Unified runner for all three variants.
+
+#### Algorithm Flow
+
+1. Load hyperparameter
+
+   * `param = 0` for Greedy
+   * `param = setParamAlgo('eGreedy')` for ε-Greedy
+   * `param = setParamAlgo('OIV')` for OIV
+2. Set `algorithmsInProgress = true`
+3. For `t = 0` to `< banditStore.possibleInvestments`:
+
+   * **Arm selection**
+
+     * ε-Greedy: with probability `ε = param` select a random arm, otherwise greedy
+     * Greedy or OIV: compute the average of the appropriate returns per arm
+
+       * Greedy: mean of `greedyReturn`, or 0 if no history
+       * ε-Greedy: mean of `eGreedyReturn`, or 0 if no history
+       * OIV: `v0 = param` if no history, otherwise mean of `optimisticInitialReturn`
+     * Choose the arm with the highest average
+   * **Draw reward**
+
+     * Bernoulli: `reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0`
+     * Gaussian: `reward = gaussian(chosen_arm.gaussian_param)`
+   * **Persist**
+
+     * Standard mode: write to the respective store array
+     * Compare mode: write to `tempInvestments` and call the matching aggregator
+
+       * Greedy: `addGreedyResult('default', compareReward)`
+       * ε-Greedy: `addEGreedyResult(param, compareReward)`
+       * OIV: `addOIVResult(param, compareReward)`
+       * If `optimalActions === true`: `compareReward = chosen_arm.stock.id`, otherwise `compareReward = reward`
+4. Set `algorithmsInProgress = false`
+
+## Statistical Implementation
+
+### Averaging per variant
+
+Greedy
+
+```ts
+const items = isCompareMode
+  ? tempInvestments.filter(inv => inv.stock === stock[i])
+  : algorithmStore.investmentsGreedy.filter(inv => inv.stock === stock[i]);
+
+const avg = items.length > 0
+  ? items.reduce((acc, inv) => acc + (inv.greedyReturn || 0), 0) / items.length
+  : 0;
+```
+
+ε-Greedy
+
+```ts
+const items = isCompareMode
+  ? tempInvestments.filter(inv => inv.stock === stock[i])
+  : algorithmStore.investmentsEGreedy.filter(inv => inv.stock === stock[i]);
+
+const avg = items.length > 0
+  ? items.reduce((acc, inv) => acc + (inv.eGreedyReturn || 0), 0) / items.length
+  : 0;
+```
+
+OIV
+
+```ts
+const items = isCompareMode
+  ? tempInvestments.filter(inv => inv.stock === stock[i])
+  : algorithmStore.investmentsOptimisticInitial.filter(inv => inv.stock === stock[i]);
+
+const avg = items.length === 0
+  ? param
+  : items.reduce((acc, inv) => acc + (inv.optimisticInitialReturn || 0), 0) / items.length;
+```
+
+### Reward models
+
+```ts
+// Bernoulli
+const reward = bernoulli(chosen_arm.bernoulli_param) ? 1 : 0;
+
+// Gaussian
+const reward = gaussian(chosen_arm.gaussian_param);
+```
+
+## Data Management
+
+### Store Integration
+
+#### `useBanditStore`
+
+* `selectedStocks`: fixed stock list for the entire run
+* `possibleInvestments`: total number of allowed pulls
+
+#### `useAlgorithmStore`
+
+* `algorithmsInProgress`: boolean flag for UI feedback
+* Result arrays per algorithm
+
+  * `investmentsGreedy`
+  * `investmentsEGreedy`
+  * `investmentsOptimisticInitial`
+* `algorithmsCompare`: controls Compare mode
+* `optimalActions`: optional switch to use `stock.id` as the comparison metric
+
+#### Compare mode
+
+* In-memory history in `tempInvestments`
+* Call the matching `add...Result` each step
+* Pass `param` to the Compare storage for ε-Greedy and OIV
+
+### Investment entry shape
+
+```ts
+{
+  stock: chosen_arm,
+  greedyReturn: number | null,
+  eGreedyReturn: number | null,
+  thompsonReturn: null,
+  ucbReturn: null,
+  gradientReturn: null,
+  optimisticInitialReturn: number | null,
+  userAlgorithmReturn: null
 }
 ```
 
-### Key Constants
+Only the field that matches the algorithm is populated. This separation ensures that per-algorithm statistics are computed correctly.
 
-- `val_epsilon = 0.1`: Exploration probability for Epsilon-Greedy
-- `OIV_value = 5`: Optimistic initial value for OIV algorithm
+## Key Helpers
 
-## Store Integration
+Typical pattern for selecting the best stock
 
-### Data Structures
-
-```typescript
-interface AlgoInvestment {
-    stock: selectedStock;
-    greedyReturn: number | null;
-    eGreedyReturn: number | null;
-    optimisticInitialReturn: number | null;
-    // ... other algorithm returns
+```ts
+let bestIndex = 0;
+let bestValue = -Infinity;
+for (let i = 0; i < stock.length; i++) {
+  // compute avg_result based on the algorithm
+  if (avg_result > bestValue) {
+    bestValue = avg_result;
+    bestIndex = i;
+  }
 }
 ```
 
-### Store Updates
+Random arm selection for ε-Greedy
 
-- **Greedy**: Updates `algorithmStore.investmentsGreedy`
-- **Epsilon-Greedy**: Updates `algorithmStore.investmentsEGreedy`
-- **OIV**: Updates `algorithmStore.investmentsOptimisticInitial`
-
-Each investment stores the chosen stock and reward, with other algorithm fields set to `null`.
+```ts
+if (algorithm === 'eGreedy' && Math.random() < param) {
+  best_arm_index = Math.floor(Math.random() * stock.length);
+}
+```
 
 ## Usage Example
 
-```typescript
-import { greedy_bernoulli, eGreedy_gaussian, OIV_bernoulli } from '@/algorithms/e_greedy_OIV';
+```ts
+import {
+  greedy_bernoulli,
+  eGreedy_bernoulli,
+  OIV_bernoulli,
+  greedy_gaussian,
+  eGreedy_gaussian,
+  OIV_gaussian
+} from '@/algorithms/GreedyFamily';
 
-// Configure bandit store
+import { useBanditStore } from '@/stores/bandit';
+import { useAlgorithmStore } from '@/stores/algorithms';
+import { setParamAlgo } from '@/stores/parameter_algos';
+
+const banditStore = useBanditStore();
+const algorithmStore = useAlgorithmStore();
+
 banditStore.selectedStocks = [
-  { stock: {...}, bernoulli_param: 0.7, gaussian_param: 0.05 }
+  { id: 1, bernoulli_param: 0.7, gaussian_param: { mean: 0.1 } },
+  { id: 2, bernoulli_param: 0.5, gaussian_param: { mean: 0.05 } }
 ];
-banditStore.possibleInvestments = 100;
 
-// Run algorithms
-greedy_bernoulli();          // Pure exploitation
-eGreedy_gaussian();          // ε-exploration
-OIV_bernoulli();             // Optimistic initialization
+banditStore.possibleInvestments = 1000;
 
-// Access results
-console.log(algorithmStore.investmentsGreedy);
+// Set hyperparameters
+setParamAlgo('eGreedy'); // returns ε
+setParamAlgo('OIV');     // returns v0
+
+// Runs
+eGreedy_bernoulli();
+OIV_gaussian();
+greedy_gaussian();
+
+// Compare mode
+algorithmStore.algorithmsCompare = true;
+algorithmStore.optimalActions = false; // or true to log stock.id as comparison value
+eGreedy_gaussian();
+
 console.log(algorithmStore.investmentsEGreedy);
-console.log(algorithmStore.investmentsOptimisticInitial);
 ```
 
-## Dependencies
+## Complexity
 
-- **Pinia stores**: `useBanditStore`, `useAlgorithmStore`
-- **Bandit functions**: `bernoulli(p)`, `gaussian(σ)`
-- **Vue.js**: Reactivity system
-- **TypeScript**: Type safety
+* Each step computes per arm averages and selects an arm. Naive complexity is `O(T · K)`.
+* Optimization: maintain per arm `count` and `sum` and update incrementally. This removes history filters.
 
 ## Limitations
 
-1. **Greedy**: No exploration after first positive reward
-2. **Epsilon-Greedy**: Fixed ε may not be optimal for all scenarios
-3. **OIV**: Exploration only in early phase, sensitive to initial value choice
-4. **All**: Simple averaging without learning rate or decay mechanisms
+1. Greedy can get stuck on suboptimal arms if early randomness is unfavorable.
+2. The choice of `ε` in ε-Greedy is critical. Too small reduces exploration, too large hurts asymptotic performance.
+3. OIV depends strongly on the start value `v0`. Too large causes excessive early exploration, too small behaves like Greedy.
+4. Repeated filtering over histories is inefficient for very large runs. Incremental statistics are preferable.
+5. In Compare mode a mapping to `chosen_arm.stock.id` can occur when `optimalActions === true`. This requires a consistent stock structure.
+
+## Summary
+
+* The module implements **Greedy**, **ε-Greedy**, and **Optimistic Initial Values** for Bernoulli and Gaussian bandits.
+* Selection uses empirical means. ε-Greedy adds random exploration. OIV enforces early exploration through optimistic initialization.
+* Results are stored in the respective store arrays. In Compare mode additional comparison values are logged.
+* For high performance keep per arm counters and sums incrementally.
