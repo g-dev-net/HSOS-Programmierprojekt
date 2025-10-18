@@ -464,6 +464,10 @@ function formatSelectedArmValue(value: number) {
           <p style="margin:.25rem 0;">
             In stationären Umgebungen oft sehr effektiv. Wahl von \(Q_0\) ist heuristisch. In stark nichtstationären Umgebungen oder mit konstantem Lernraten Update kann die Optimismuswirkung zu lang anhaltender Fehlexploration führen.
           </p>
+
+          <p class="theory-source">
+            Quelle: Shojaee G., Rajabi Mashhadi. Optimistic Initial Value Analysis in a Greedy Selection Approach to MAB Problems. ICCKE 2017.
+          </p>
         </template>
 
         <!-- Gradient Bandit -->
@@ -493,6 +497,10 @@ function formatSelectedArmValue(value: number) {
           <h3 style="margin:.45rem 0 .25rem;">Eigenschaften</h3>
           <p style="margin:.25rem 0;">
             Exploration ist in der Softmax enthalten. Das Verfahren passt Wahlwahrscheinlichkeiten direkt an und reagiert flexibel auf veränderte Belohnungen.
+          </p>
+
+          <p class="theory-source">
+            Quelle: Melo, Müller. Beyond Softmax: A New Perspective on Gradient Bandits. arXiv:2510.03979, 2025.
           </p>
         </template>
 
