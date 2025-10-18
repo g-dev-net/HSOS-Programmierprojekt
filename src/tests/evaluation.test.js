@@ -32,7 +32,7 @@ vi.mock("pinia", () => ({
 }));
 
 // Import nach den Mocks
-import { algorithms_evaluation } from "../stores/evaluation";
+import { algorithms_evaluation } from "../assets/utils/evaluation";
 
 // Helper zum Bauen von Testdaten
 function stock(id, params = {}) {
