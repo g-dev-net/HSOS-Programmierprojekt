@@ -24,10 +24,36 @@ const props = defineProps<{
 const chartCanvas = ref<HTMLCanvasElement | null>(null);
 let chartInstance: Chart | null = null;
 
-const colors = [
-  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-  '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF9F40'
-];
+// Algorithmenfarben entsprechend AlgorithmView
+const algorithmColors: Record<string, string> = {
+  greedy: '#ff0000',      // Rot
+  eGreedy: '#ffa500',     // Orange
+  thompson: '#008000',    // Grün
+  ucb: '#0000ff',         // Blau
+  oiv: '#800080',         // Lila
+  gradient: '#00ffff'     // Cyan
+};
+
+// Generiere Farbabstufung für Parameter (heller werdend)
+function getParameterColor(baseColor: string, paramIndex: number, totalParams: number): string {
+  if (totalParams === 1) return baseColor;
+  
+  // Konvertiere Hex zu RGB
+  const r = parseInt(baseColor.slice(1, 3), 16);
+  const g = parseInt(baseColor.slice(3, 5), 16);
+  const b = parseInt(baseColor.slice(5, 7), 16);
+  
+  // Berechne Aufhellungsfaktor (0 = dunkel/original, 1 = sehr hell)
+  // Verteile gleichmäßig über den Bereich 0 bis 0.6 (nicht zu hell)
+  const lightnessFactor = (paramIndex / (totalParams - 1)) * 0.6;
+  
+  // Mische mit Weiß (255, 255, 255)
+  const newR = Math.round(r + (255 - r) * lightnessFactor);
+  const newG = Math.round(g + (255 - g) * lightnessFactor);
+  const newB = Math.round(b + (255 - b) * lightnessFactor);
+  
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
 
 function createChart() {
   if (!chartCanvas.value) {
@@ -47,12 +73,29 @@ function createChart() {
     chartInstance.destroy();
   }
 
-  const datasets = props.results.map((result, index) => {
+  // Gruppiere Ergebnisse nach Algorithmus für Farbabstufungen
+  const algorithmGroups = new Map<string, CompareResult[]>();
+  props.results.forEach(result => {
+    if (!algorithmGroups.has(result.algorithmId)) {
+      algorithmGroups.set(result.algorithmId, []);
+    }
+    algorithmGroups.get(result.algorithmId)!.push(result);
+  });
+
+  const datasets = props.results.map((result) => {
     const label = result.parameter !== null 
       ? `${result.algorithmName} (${result.parameter})`
       : result.algorithmName;
 
     console.log(`Dataset ${label}: ${result.datapoints.length} datapoints`);
+
+    // Bestimme Basisfarbe und Abstufung
+    const baseColor = algorithmColors[result.algorithmId] || '#888888';
+    const group = algorithmGroups.get(result.algorithmId)!;
+    const paramIndex = group.indexOf(result);
+    const totalParams = group.length;
+    
+    const color = getParameterColor(baseColor, paramIndex, totalParams);
 
     return {
       label,
@@ -60,8 +103,8 @@ function createChart() {
         x: dp.iteration,
         y: dp.optimalPercentage
       })),
-      borderColor: colors[index % colors.length],
-      backgroundColor: colors[index % colors.length] + '33',
+      borderColor: color,
+      backgroundColor: color + '33',
       borderWidth: 2,
       tension: 0.1,
       pointRadius: 0,
