@@ -76,7 +76,11 @@ export function gradientBandit(bandit: 'bernoulli' | 'gaussian') {
                 userAlgorithmReturn: null
             });
         } else {
-            addGradientResult(alpha!, reward);
+            let compareReward = reward;
+            if (algorithmStore.optimalActions === true) {
+                compareReward = chosen_arm.stock.id;
+            }
+            addGradientResult(alpha!, compareReward);
         }
     }
     algorithmStore.algorithmsInProgress = false;

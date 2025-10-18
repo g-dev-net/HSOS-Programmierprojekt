@@ -3,7 +3,6 @@ import { gaussian } from "../bandits/gaussian.js";
 import { useBanditStore } from "@/stores/bandit";
 import { useAlgorithmStore } from "@/stores/algorithms";
 import { addUCBResult } from '@/stores/compare_algos_store';
-import { getDefaultParams } from '@/stores/parameter_algos.ts';
 import { setParamAlgo } from '@/stores/parameter_algos.ts';
 
 type BanditKind = "bernoulli" | "gaussian";
@@ -13,14 +12,6 @@ export function upperConfidenceBound_bernoulli() {
 }
 export function upperConfidenceBound_gaussian() {
   ucb("gaussian");
-}
-
-function setParam(algorithmStore: ReturnType<typeof useAlgorithmStore>) {
-  if (algorithmStore.algorithmsCompare === false) {
-    return getDefaultParams().ucb;
-  } else {
-    return getDefaultParams().ucb;
-  }
 }
 
 function ucb(bandit: BanditKind) {
@@ -36,9 +27,15 @@ function ucb(bandit: BanditKind) {
 
   algorithmStore.algorithmsInProgress = true;
 
+  // Im Compare-Modus: Nutze lokales temporäres Array statt Pinia Store
+  const isCompareMode = algorithmStore.algorithmsCompare;
+  const tempInvestments: any[] = [];
+
   // Nur nach Stock filtern, da investmentsUCB ausschließlich UCB-Einträge enthält
   const pullsForStock = (idx: number) =>
-    algorithmStore.investmentsUCB.filter(inv => inv.stock === stocks[idx]);
+    isCompareMode 
+      ? tempInvestments.filter(inv => inv.stock === stocks[idx])
+      : algorithmStore.investmentsUCB.filter(inv => inv.stock === stocks[idx]);
 
   const meanForStock = (idx: number) => {
     const pulls = pullsForStock(idx);
@@ -49,6 +46,34 @@ function ucb(bandit: BanditKind) {
 
   const ucbValue = (mean: number, n: number, t: number) =>
     mean + Math.sqrt((UCB_C * Math.log(t)) / n);
+
+  const totalUcbPulls = () => isCompareMode ? tempInvestments.length : algorithmStore.investmentsUCB.length;
+
+  const pushInvestment = (chosen_arm: any, reward: number) => {
+    if (isCompareMode) {
+      tempInvestments.push({
+        stock: chosen_arm,
+        greedyReturn: null,
+        eGreedyReturn: null,
+        thompsonReturn: null,
+        ucbReturn: reward,
+        gradientReturn: null,
+        optimisticInitialReturn: null,
+        userAlgorithmReturn: null
+      });
+    } else {
+      algorithmStore.investmentsUCB.push({
+        stock: chosen_arm,
+        greedyReturn: null,
+        eGreedyReturn: null,
+        thompsonReturn: null,
+        ucbReturn: reward,
+        gradientReturn: null,
+        optimisticInitialReturn: null,
+        userAlgorithmReturn: null
+      });
+    }
+  };
 
   // Initialisierung: jeden Arm genau einmal ziehen, solange Budget vorhanden
   for (let i = 0; i < K && totalUcbPulls() < T; i++) {
@@ -76,11 +101,18 @@ function ucb(bandit: BanditKind) {
     }
 
     const chosen = stocks[best];
-    const reward = drawReward(bandit, chosen);
+    let reward = drawReward(bandit, chosen);
+    
     if (algorithmStore.algorithmsCompare === false) {
       pushInvestment(chosen, reward);
     } else {
-      addUCBResult(UCB_C, reward);
+      pushInvestment(chosen, reward);  // Auch im Compare-Modus für nächste Iteration
+      
+      let compareReward = reward;
+      if (algorithmStore.optimalActions === true) {
+        compareReward = chosen.stock.id;
+      }
+      addUCBResult(UCB_C, compareReward);
     }
   }
 
@@ -93,22 +125,5 @@ function ucb(bandit: BanditKind) {
       case "gaussian":
         return gaussian(chosen_arm.gaussian_param);
     }
-  }
-
-  function pushInvestment(chosen_arm: any, reward: number) {
-    algorithmStore.investmentsUCB.push({
-      stock: chosen_arm,
-      greedyReturn: null,
-      eGreedyReturn: null,
-      thompsonReturn: null,
-      ucbReturn: reward,
-      gradientReturn: null,
-      optimisticInitialReturn: null,
-      userAlgorithmReturn: null
-    });
-  }
-
-  function totalUcbPulls() {
-    return algorithmStore.investmentsUCB.length;
   }
 }

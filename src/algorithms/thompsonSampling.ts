@@ -20,11 +20,17 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
     const stock = banditStore.selectedStocks;
     const algorithmStore = useAlgorithmStore();
     
+    // Im Compare-Modus: Nutze lokales temporäres Array statt Pinia Store
+    const isCompareMode = algorithmStore.algorithmsCompare;
+    const tempInvestments: any[] = [];
+    
     algorithmStore.algorithmsInProgress = true;
     for (let t = 0; t < banditStore.possibleInvestments; t++) {
         let sampledValues: number[] = [];
         for (let i = 0; i < stock.length; i++) {
-            const arm_investments = algorithmStore.investmentsThompson.filter(inv => inv.stock === stock[i]);
+            const arm_investments = isCompareMode 
+                ? tempInvestments.filter(inv => inv.stock === stock[i])
+                : algorithmStore.investmentsThompson.filter(inv => inv.stock === stock[i]);
             let sampledValue = 0;
             switch (bandit) {
                 case 'bernoulli':
@@ -79,7 +85,23 @@ function thompsonSampling(bandit: 'bernoulli' | 'gaussian') {
                 userAlgorithmReturn: null
             });
         } else {
-            addThompsonResult('default', reward);
+            // Speichere in tempInvestments für nächste Iteration
+            tempInvestments.push({
+                stock: chosen_arm,
+                greedyReturn: null,
+                eGreedyReturn: null,
+                thompsonReturn: reward,
+                ucbReturn: null,
+                gradientReturn: null,
+                optimisticInitialReturn: null,
+                userAlgorithmReturn: null
+            });
+            
+            let compareReward = reward;
+            if (algorithmStore.optimalActions === true) {
+                compareReward = chosen_arm.stock.id;
+            }
+            addThompsonResult('default', compareReward);
         }
     }
     algorithmStore.algorithmsInProgress = false;

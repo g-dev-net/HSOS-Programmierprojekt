@@ -1,52 +1,39 @@
 import { useAlgorithmStore } from '@/stores/algorithms';
+import { reactive } from 'vue';
 
-// Custom Map mit geschützten Default-Keys
-class ProtectedMap<K> extends Set<K> {
-  private protectedKeys: Set<K>;
+// Parameter als einfache Arrays
+const algorithmParam = reactive<Record<string, number[]>>({
+    eGreedy: [0.1],      // ε=0.1 ist default
+    ucb: [2],            // c=2 ist default
+    oiv: [5],            // initial=5 ist default
+    gradient: [0.1],     // α=0.1 ist default
+});
 
-  constructor(defaults: K[] = []) {
-    super(defaults);
-    this.protectedKeys = new Set(defaults);
-  }
-
-  delete(key: K): boolean {
-    if (this.protectedKeys.has(key)) {
-      console.warn(`Cannot delete protected key: ${key}`);
-      return false;
+export function addAlgorithmParam(algorithm: string, value: number, idx: number): void {
+    if (!algorithmParam[algorithm]) {
+        algorithmParam[algorithm] = [];
     }
-    return super.delete(key);
-  }
-
-  resetToDefaults(): void {
-    super.clear();
-    for (const key of this.protectedKeys) {
-      this.add(key);
+    
+    // Wenn Index existiert: Wert am Index setzen
+    // Wenn Index neu: Wert hinzufügen (aber nur wenn nicht schon vorhanden)
+    if (idx < algorithmParam[algorithm].length) {
+        algorithmParam[algorithm][idx] = value;
+    } else if (!algorithmParam[algorithm].includes(value)) {
+        algorithmParam[algorithm].push(value);
     }
-  }
-
-  addKey(key: K): boolean {
-    if (this.has(key)) {
-      console.warn(`Key ${key} already exists`);
-      return false;
-    }
-    this.add(key);
-    return true;
-  }
 }
 
-// Parameter mit Default-Keys
-export const algorithmParam = {
-    eGreedy: new ProtectedMap<number>([0.1]),      // ε=0.1 ist default
-    ucb: new ProtectedMap<number>([2]),            // c=2 ist default
-    oiv: new ProtectedMap<number>([5]),            // initial=5 ist default
-    gradient: new ProtectedMap<number>([0.1]),     // α=0.1 ist default
-};
-
-export function addAlgorithmParam(algorithm: keyof typeof algorithmParam, value: number): boolean {
-    return algorithmParam[algorithm].addKey(value);
+export function removeAlgorithmParam(algorithm: string, idx: number): void {
+    if (algorithmParam[algorithm]) {
+        algorithmParam[algorithm].splice(idx, 1);
+    }
 }
 
-export function getDefaultParams() {
+export function getAlgorithmParams(): Record<string, number[]> {
+    return { ...algorithmParam };
+}
+
+function getDefaultParams() {
     return {
         eGreedy: 0.1,
         ucb: 2,
@@ -57,22 +44,26 @@ export function getDefaultParams() {
 
 export function setParamAlgo(algorithm: 'eGreedy' | 'ucb' | 'OIV' | 'gradient') {
     const algorithmStore = useAlgorithmStore();
+    
+    // Im Compare-Modus: Nutze currentCompareParam aus dem Store
+    if (algorithmStore.algorithmsCompare === true && algorithmStore.currentCompareParam !== undefined) {
+        return algorithmStore.currentCompareParam;
+    }
+    
+    // Im Normal-Modus: Nutze Default-Werte
     if (algorithmStore.algorithmsCompare === false) {
         switch (algorithm) {
             case "eGreedy":
                 return getDefaultParams().eGreedy;
-                break;
             case "ucb":
                 return getDefaultParams().ucb;
-                break;
             case "OIV":
                 return getDefaultParams().oiv;
-                break;
             case "gradient":
                 return getDefaultParams().gradient;
-                break;
         }
-    } else {
-        return getDefaultParams().ucb;
     }
+    
+    // Fallback
+    return getDefaultParams().ucb;
 }

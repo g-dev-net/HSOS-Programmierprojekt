@@ -16,6 +16,7 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   const algorithmsCompleted = ref(false)
   const algorithmsCompare = ref(false)
   const optimalActions = ref(true)
+  const currentCompareParam = ref<number | undefined>(undefined)
 
   // list of investments
   const investmentsGreedy = ref<AlgoInvestment[]>([])
@@ -133,5 +134,5 @@ export const useAlgorithmStore = defineStore('algorithm', () => {
   )
 
 
-  return { algorithmsInProgress, algorithmsCompleted, algorithmsCompare, optimalActions, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
+  return { algorithmsInProgress, algorithmsCompleted, algorithmsCompare, optimalActions, currentCompareParam, investmentsGreedy, investmentsEGreedy, investmentsThompson, investmentsUCB, investmentsGradient, investmentsOptimisticInitial, investmentsUserAlgorithm, runAlgorithms, resetAlgorithms, greedyDataPoints, thompsonSamplingDataPoints, upperConfidenceBoundDataPoints, eGreedyDataPoints, oivDataPoints, gradientDataPoints }
 })

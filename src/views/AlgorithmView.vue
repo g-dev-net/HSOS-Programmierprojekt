@@ -4,13 +4,17 @@ import { useBanditStore } from '@/stores/bandit';
 import router from '@/router';
 import { useAlgorithmStore } from '@/stores/algorithms';
 import CompareChartReward from '@/components/CompareChartReward.vue';
+import CompareResultChart from '@/components/CompareResultChart.vue';
 import Modal from '@/components/Modal.vue';
-import { comp_algos_bernoulli, comp_algos_gaussian } from '@/algorithms/compare_algos.ts';
-import { getDefaultParams } from '@/stores/parameter_algos.ts';
+import { comp_algos_bernoulli, comp_algos_gaussian, type CompareResult } from '@/algorithms/compare_algos.ts';
+import { addAlgorithmParam, removeAlgorithmParam, getAlgorithmParams, setParamAlgo } from '@/stores/parameter_algos.ts';
+// import { algorithmParam } from '@/stores/parameter_algos.ts';
 
 // ----------------------- Stores -----------------------
 const banditStore = useBanditStore();
 const algorithmStore = useAlgorithmStore();
+
+const popupParams = computed(() => getAlgorithmParams());
 
 // ----------------------- Sidebar Toggles -----------------------
 const showUser = ref(true);
@@ -33,20 +37,31 @@ const algorithmToggles = ref([
 
 // ----------------------- Popup Modal Toggles -----------------------
 const popupAlgoToggles = ref([
-  { id: 'greedy', label: 'Greedy Algorithmus', show: ref(false) },
-  { id: 'thompson', label: 'Thompson Sampling', show: ref(false) },
-  { id: 'ucb', label: 'Upper Confidence Bound', show: ref(false) },
-  { id: 'eGreedy', label: 'Epsilon-Greedy', show: ref(false) },
-  { id: 'oiv', label: 'Optimistic Initial Values', show: ref(false) },
-  { id: 'gradient', label: 'Gradient Bandit', show: ref(false) },
-] as const);
+  { id: 'greedy', label: 'Greedy Algorithmus', show: false },
+  { id: 'thompson', label: 'Thompson Sampling', show: false },
+  { id: 'ucb', label: 'Upper Confidence Bound', show: false },
+  { id: 'eGreedy', label: 'Epsilon-Greedy', show: false },
+  { id: 'oiv', label: 'Optimistic Initial Values', show: false },
+  { id: 'gradient', label: 'Gradient Bandit', show: false },
+]);
 
 type AlgorithmToggle = typeof algorithmToggles.value[number];
 
 // ----------------------- Modal State -----------------------
 const activeTheory = ref<AlgorithmToggle | null>(null);
 const compareModalVisible = ref(false);
-const globalRuns = ref(1000);
+const loadingModalVisible = ref(false);
+const plottedComparison = ref(false);
+const compareResults = ref<CompareResult[]>([]);
+const cancelCalculation = ref(false);
+const progressStatus = ref({
+  currentAlgorithm: '',
+  currentParameter: 0,
+  totalParameters: 0,
+  currentRun: 0,
+  totalRuns: 0,
+  percentage: 0
+});
 
 const popupExpanded = ref<Record<string, boolean>>({
   ucb: false,
@@ -55,19 +70,12 @@ const popupExpanded = ref<Record<string, boolean>>({
   gradient: false,
 });
 
-const popupParams = ref<Record<string, Array<number>>>({
-  ucb: [getDefaultParams().ucb],
-  eGreedy: [getDefaultParams().eGreedy],
-  oiv: [getDefaultParams().oiv],
-  gradient: [getDefaultParams().gradient],
-});
-
 // ----------------------- Parameter Configuration -----------------------
 const paramConfig = {
-  ucb: { label: 'c-Wert', min: 0.1, max: 10, step: 0.1, placeholder: 'z.B. 2', maxFields: 5 },
-  eGreedy: { label: 'Epsilon', min: 0.001, max: 1, step: 0.01, placeholder: 'z.B. 0.1', maxFields: 5 },
-  oiv: { label: 'Initval', min: 0, max: 100, step: 1, placeholder: 'z.B. 5', maxFields: 5 },
-  gradient: { label: 'Schritt', min: 0.001, max: 1, step: 0.01, placeholder: 'z.B. 0.1', maxFields: 5 },
+  ucb: { label: 'c-Wert', min: 0.1, max: 10, step: 0.1, default: setParamAlgo('ucb'), placeholder: 'z.B. 2', maxFields: 5 },
+  eGreedy: { label: 'Epsilon', min: 0, max: 1, step: 0.01, default: setParamAlgo('eGreedy'), placeholder: 'z.B. 0.1', maxFields: 5 },
+  oiv: { label: 'Initval', min: 0, max: 100, step: 1, default: setParamAlgo('OIV'), placeholder: 'z.B. 5', maxFields: 5 },
+  gradient: { label: 'Schritt', min: 0, max: 1, step: 0.01, default: setParamAlgo('gradient'), placeholder: 'z.B. 0.1', maxFields: 5 },
 } as const;
 
 const showParamInput = (id: string) => id !== 'greedy' && id !== 'thompson';
@@ -86,18 +94,47 @@ const togglePopupExpand = (id: string) => {
 
 const addParamField = (id: string) => {
   const config = paramConfig[id as keyof typeof paramConfig];
-  if (config && popupParams.value[id].length < config.maxFields) {
-    popupParams.value[id].push(getMin(id));
+  const params = popupParams.value[id];
+  if (config && params.length < config.maxFields) {
+    // Default-Wert als Basis, dann Default + n*step
+    const base = config.placeholder?.startsWith('z.B.') ? Number(config.placeholder.replace('z.B.', '').trim()) : config.min;
+    const defaultValue = config.default ?? config.min;
+let newValue = +(defaultValue + params.length * config.step).toFixed(10);
+    // Falls Wert schon vorhanden, weiterzählen
+    while (params.includes(newValue) && newValue <= config.max) {
+      newValue = +(newValue + config.step).toFixed(10);
+    }
+    if (newValue <= config.max) {
+      addAlgorithmParam(id, newValue, params.length);
+    }
   }
 };
 
+function onParamInput(event: Event, algoId: string, idx: number) {
+  const value = Number((event.target as HTMLInputElement).value);
+  const min = getMin(algoId);
+  const max = getMax(algoId);
+  if (!isNaN(value) && value >= min && value <= max) {
+    // Setze Wert im globalen Store
+    addAlgorithmParam(algoId, value, idx);
+  }
+  // Wenn Feld gelöscht, Wert entfernen
+  if ((event.target as HTMLInputElement).value === '') {
+    removeAlgorithmParam(algoId, idx);
+  }
+}
+
 const removeLastParamField = (id: string) => {
   if (popupParams.value[id] && popupParams.value[id].length > 1) {
-    popupParams.value[id].pop();
+    removeAlgorithmParam(id, popupParams.value[id].length - 1);
   }
 };
 
 // ----------------------- Modal Actions -----------------------
+let globalIterations = ref(150);
+let globalRuns = ref(150);
+let globalArmCount = ref(7);
+
 const theoryModalVisible = computed({
   get: () => activeTheory.value !== null,
   set: (value: boolean) => {
@@ -111,15 +148,70 @@ const openTheoryModal = (toggle: AlgorithmToggle) => {
 
 const openCompareModal = () => {
   compareModalVisible.value = true;
+  loadingModalVisible.value = false;
+  plottedComparison.value = false;
 };
 
 const startComparison = () => {
+  runPopupActions();
   compareModalVisible.value = false;
+}
 
-  if (banditStore.activeBandit === 'bernoulli') {
-    comp_algos_bernoulli();
-  } else {
-    comp_algos_gaussian();
+// Führt alle im Popup beschriebenen Aktionen aus
+function runPopupActions() {
+
+  // 1. Ermittle alle ausgewählten Algorithmen im Popup
+  const selectedAlgos = popupAlgoToggles.value.filter(a => a.show);
+  
+  if (selectedAlgos.length === 0) {
+    alert('Bitte wähle mindestens einen Algorithmus aus.');
+    return;
+  }
+  
+  // 2. Ermittle die Anzahl der Durchläufe
+  const runs = globalRuns.value;
+  const iterations = globalIterations.value;
+  const armCount = globalArmCount.value;
+  
+  // 3. Führe die Vergleichs-Logik aus
+  startComparisonWait(selectedAlgos, runs, iterations, armCount);
+};
+
+const startComparisonWait = async (selectedAlgos: any[], runs: number, iterations: number, armCount: number) => {
+  loadingModalVisible.value = true;
+  cancelCalculation.value = false;
+  progressStatus.value = { currentAlgorithm: '', currentParameter: 0, totalParameters: 0, currentRun: 0, totalRuns: 0, percentage: 0 };
+  
+  const progressCallback = (status: typeof progressStatus.value) => {
+    progressStatus.value = { ...status };
+  };
+  
+  try {
+    let results: CompareResult[] = [];
+    algorithmStore.algorithmsCompare = true;
+    if (banditStore.activeBandit === 'bernoulli') {
+      results = await comp_algos_bernoulli(selectedAlgos, runs, iterations, popupParams.value, armCount, cancelCalculation, progressCallback);
+    } else {
+      results = await comp_algos_gaussian(selectedAlgos, runs, iterations, popupParams.value, armCount, cancelCalculation, progressCallback);
+    }
+    algorithmStore.algorithmsCompare = false;
+    // Falls abgebrochen, nicht anzeigen
+    if (cancelCalculation.value) {
+      loadingModalVisible.value = false;
+      compareModalVisible.value = true;
+      plottedComparison.value = false;
+      return;
+    }
+    console.log('Comparison results:', results.length, 'algorithms');
+    console.log('First result sample:', results[0]);
+    compareResults.value = results;
+    loadingModalVisible.value = false;
+    compareModalVisible.value = false;
+    plottedComparison.value = true;
+  } catch (error) {
+    console.error('Fehler beim Plotten:', error);
+    loadingModalVisible.value = false;
+    alert('Fehler beim Erstellen des Plots. Bitte versuche es erneut.');
   }
 };
 
@@ -188,7 +280,6 @@ onBeforeMount(() => {
               <button
                 type="button"
                 class="algorithm-info-button"
-                :aria-label="`Theorie zu ${toggle.label} anzeigen`"
                 @click="openTheoryModal(toggle)"
               >
                 ?
@@ -240,12 +331,29 @@ onBeforeMount(() => {
           <input
             type="number"
             min="1"
-            max="10000"
+            max="750"
             :step="1"
             v-model.number="globalRuns"
-            placeholder="z.B. 1000"
+            placeholder="z.B. 150"
           />
-          unabhängige Durchläufe mit jeweils {{ globalRuns }} Iterationen.
+          unabhängige Durchläufe mit jeweils 
+          <input
+            type="number"
+            min="1"
+            max="750"
+            :step="1"
+            v-model.number="globalIterations"
+            placeholder="z.B. 150"
+          />
+          Iterationen. Arme:
+          <input
+            type="number"
+            min="1"
+            max="10"
+            :step="1"
+            v-model.number="globalArmCount"
+            placeholder="z.B. 7"
+          />
         </label>
       </div>
       <div class="algorithm-toggle-group">
@@ -260,7 +368,7 @@ onBeforeMount(() => {
               @click="togglePopupExpand(toggle.id)"
             >
               <span>{{ toggle.label }}</span>
-              <span class="material-symbols-outlined" :class="{ rotated: isOpen }">
+            <span class="material-symbols-outlined" :class="{ rotated: popupExpanded[toggle.id] }">
               expand_more
             </span>
             </div>
@@ -282,8 +390,9 @@ onBeforeMount(() => {
                       :min="getMin(toggle.id)"
                       :max="getMax(toggle.id)"
                       :step="getStep(toggle.id)"
-                      v-model.number="popupParams[toggle.id][idx]"
-                      :placeholder="getParamPlaceholder(toggle.id)"
+                      :placeholder="idx === 0 ? '' : (getMin(toggle.id) + idx * getStep(toggle.id)).toFixed(3)"
+                      :value="param"
+                      @input="onParamInput($event, toggle.id, idx)"
                     />
                   </label>
                 </template>
@@ -311,6 +420,37 @@ onBeforeMount(() => {
     <template #footer>
       <button class="white-button" type="button" @click="compareModalVisible = false">Schließen</button>
       <button class="white-button button-red" type="button" style="margin-left: 1rem;" @click="startComparison">Plot</button>
+    </template>
+  </Modal>
+  <Modal v-model="loadingModalVisible" :close-on-backdrop="false" :close-on-esc="false">
+    <template #header>
+      <h2>Berechnung läuft...</h2>
+    </template>
+    <div class="progress-container">
+      <div class="progress-info">
+        <strong>{{ progressStatus.currentAlgorithm }}</strong>
+        <span v-if="progressStatus.currentParameter > 0"> (Parameter {{ progressStatus.currentParameter }}/{{ progressStatus.totalParameters }})</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-bar-fill" :style="{ width: progressStatus.percentage + '%' }"></div>
+      </div>
+      <div class="progress-details">
+        Run {{ progressStatus.currentRun }}/{{ progressStatus.totalRuns }} - {{ progressStatus.percentage.toFixed(1) }}%
+      </div>
+    </div>
+    <template #footer>
+      <button class="white-button button-red" type="button" @click="cancelCalculation = true">Abbrechen</button>
+    </template>
+  </Modal>
+  <Modal v-model="plottedComparison" :close-on-backdrop="true" :close-on-esc="true">
+    <template #header>
+      <h2 class="modal__title">Algorithmen-Vergleich: Optimale Aktionen</h2>
+    </template>
+    <div class="comparison-chart-container">
+      <CompareResultChart v-if="compareResults.length > 0" :results="compareResults" />
+    </div>
+    <template #footer>
+      <button class="white-button" type="button" @click="plottedComparison = false">Schließen</button>
     </template>
   </Modal>
 </template>
@@ -505,5 +645,19 @@ onBeforeMount(() => {
 
 .remove-param-btn:hover {
   color: #c00;
+}
+
+/* ====================== Comparison Chart ====================== */
+.comparison-chart-container {
+  width: 100%;
+  max-width: 100%; /* oder 100% für volle Breite */
+  min-height: 400px;
+  margin: 0 auto; /* zentriert im Modal */
+  padding: 0;     /* kein extra Padding */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: visible; /* kein Scrollen */
 }
 </style>
